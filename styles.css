@@ -1,36 +1,56 @@
-body {
-  margin: 0;
-  padding: 0;
-  background: #111;
-  color: white;
-  font-family: monospace;
+.flipboard {
   display: flex;
   justify-content: center;
   align-items: center;
+  font-family: monospace;
+  background: black;
   height: 100vh;
+  color: white;
 }
-.flipboard {
-  display: flex;
-  font-size: 3rem;
-  gap: 0.1em;
-}
+
 .char {
   position: relative;
-  display: inline-block;
-  perspective: 800px;
+  width: 40px;
+  height: 60px;
+  margin: 2px;
+  perspective: 300px;
 }
-.char div {
-  transition: transform 0.3s;
-  transform-style: preserve-3d;
+
+.top, .bottom {
+  position: absolute;
+  width: 100%;
+  height: 50%;
+  line-height: 30px;
+  overflow: hidden;
+  background: black;
+  border: 1px solid #444;
+  text-align: center;
 }
-.char.flip div {
-  animation: flip 0.6s forwards;
+
+.top {
+  top: 0;
+  border-bottom: 1px solid #222;
 }
-@keyframes flip {
-  0% {
-    transform: rotateX(0);
-  }
-  100% {
-    transform: rotateX(-180deg);
-  }
+
+.bottom {
+  bottom: 0;
+  border-top: 1px solid #222;
+}
+
+.flip .top {
+  animation: flipTop 0.3s forwards;
+}
+
+.flip .bottom {
+  animation: flipBottom 0.3s forwards;
+}
+
+@keyframes flipTop {
+  0% { transform: rotateX(0); }
+  100% { transform: rotateX(-90deg); }
+}
+
+@keyframes flipBottom {
+  0% { transform: rotateX(90deg); }
+  100% { transform: rotateX(0); }
 }
