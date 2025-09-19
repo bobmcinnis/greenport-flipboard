@@ -1,38 +1,38 @@
-const flipboard = document.getElementById("flipboard");
-const sound = document.getElementById("tickSound");
+const board = document.getElementById('flipboard');
+const message = "WELCOME TO GREENPORT STATION!";
 
-const words = ["WELCOME TO GREENPORT", "DEPARTURES 10:30AM", "NEXT RIDE 11:00AM"];
-let currentIndex = 0;
+function createFlap(char) {
+  const container = document.createElement('div');
+  container.className = 'char';
 
-function playSound() {
-  if (sound) {
-    sound.currentTime = 0;
-    sound.play();
-  }
+  const top = document.createElement('div');
+  top.className = 'top';
+  top.textContent = char;
+
+  const bottom = document.createElement('div');
+  bottom.className = 'bottom';
+  bottom.textContent = char;
+
+  container.appendChild(top);
+  container.appendChild(bottom);
+  return container;
 }
 
-function updateBoard(text) {
-  flipboard.innerHTML = '';
-  text.split('').forEach(char => {
-    const charElem = document.createElement('div');
-    charElem.className = 'char';
-    charElem.innerHTML = `<div>${char}</div>`;
-    flipboard.appendChild(charElem);
-  });
-  setTimeout(() => {
-    [...flipboard.children].forEach((charElem, i) => {
+function showMessage(msg) {
+  board.innerHTML = '';
+  [...msg].forEach((c, i) => {
+    const flap = createFlap(c);
+    board.appendChild(flap);
+
+    setTimeout(() => {
+      flap.classList.add('flip');
       setTimeout(() => {
-        charElem.classList.add('flip');
-        playSound();
-      }, i * 100);
-    });
-  }, 100);
+        flap.querySelector('.top').textContent = c;
+        flap.querySelector('.bottom').textContent = c;
+        flap.classList.remove('flip');
+      }, 300);
+    }, i * 100); // stagger flips
+  });
 }
 
-function cycleWords() {
-  updateBoard(words[currentIndex]);
-  currentIndex = (currentIndex + 1) % words.length;
-}
-
-cycleWords();
-setInterval(cycleWords, 4000);
+showMessage(message);
