@@ -1,0 +1,73 @@
+body {
+  margin: 0;
+  background: #000;
+  color: #fff;
+  font-family: monospace;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  gap: 16px;
+}
+
+#board {
+  display: flex;
+  gap: 4px;
+}
+
+.cell {
+  position: relative;
+  width: 140px;
+  height: 180px;
+  perspective: 800px;
+}
+
+.panel, .flip-top, .flip-bottom {
+  position: absolute;
+  left: 0;
+  width: 140px;
+  height: 90px; /* half */
+  overflow: hidden;
+  backface-visibility: hidden;
+  background: #000;
+  background-size: cover;
+}
+
+.top { top: 0; border-bottom: 1px solid #222; }
+.bottom { bottom: 0; border-top: 1px solid #222; }
+
+.flip-top { top: 0; transform-origin: bottom; display: none; }
+.flip-bottom { bottom: 0; transform-origin: top; display: none; }
+
+.cell.animating .flip-top,
+.cell.animating .flip-bottom { display: block; }
+
+/* Animations */
+@keyframes topFlip {
+  0% { transform: rotateX(0deg); }
+  100% { transform: rotateX(-90deg); }
+}
+
+@keyframes bottomFlip {
+  0% { transform: rotateX(90deg); }
+  100% { transform: rotateX(0deg); }
+}
+
+.cell.anim-top .flip-top {
+  animation: topFlip 140ms linear forwards;
+}
+
+.cell.anim-bottom .flip-bottom {
+  animation: bottomFlip 140ms linear forwards;
+}
+
+.controls { position: fixed; top: 12px; right: 12px; }
+.controls button {
+  background: #222;
+  border: 1px solid #444;
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
