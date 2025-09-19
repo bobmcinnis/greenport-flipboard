@@ -4,85 +4,15 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Greenport Flipboard</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="styles.css"/>
 </head>
 <body>
-  <div class="board">
-    <div id="flipboard" class="flipboard"></div>
+  <div class="header">
+    <span id="tickerText">Departures</span>
+    <button id="muteButton">🔈</button>
   </div>
-
-  <audio id="tick-sample" preload="auto" src="tick.m4a"></audio>
-
-  <script>
-    const flipboardText = [
-      "WELCOME TO GREENPORT EXPRESS STATION!",
-      "NEXT DEPARTURE: 11:30 AM",
-      "NEXT DEPARTURE: 12:00 PM",
-      "NEXT DEPARTURE: 12:30 PM",
-      "NEXT DEPARTURE: 1:00 PM",
-      "ALL ABOARD FOR MOORE'S WOODS!",
-      "DEPARTURES • DEPARTURES • DEPARTURES",
-    ];
-
-    let currentIndex = 0;
-    const flipInterval = 3000; // time between updates in ms
-    const charDelay = 50; // delay between each character flip in ms
-
-    const flipboard = document.getElementById('flipboard');
-
-    function createFlipCharElement(char) {
-      const span = document.createElement('span');
-      span.classList.add('flip-char');
-      span.textContent = char;
-      return span;
-    }
-
-    function playTick() {
-      const tick = new Audio('tick.m4a');
-      tick.play().catch(err => {
-        console.log("Tick audio blocked:", err);
-      });
-    }
-
-    function updateBoard(text) {
-      const chars = text.split('');
-      flipboard.innerHTML = '';
-      chars.forEach(char => {
-        const span = createFlipCharElement(char);
-        flipboard.appendChild(span);
-      });
-    }
-
-    function animateFlipText(newText) {
-      const oldSpans = flipboard.querySelectorAll('.flip-char');
-      const newChars = newText.split('');
-
-      newChars.forEach((newChar, i) => {
-        const oldSpan = oldSpans[i];
-        if (!oldSpan) return;
-
-        setTimeout(() => {
-          oldSpan.classList.add('flip');
-          setTimeout(() => {
-            oldSpan.textContent = newChar;
-            oldSpan.classList.remove('flip');
-            playTick();
-          }, 150); // match CSS flip duration
-        }, i * charDelay);
-      });
-    }
-
-    function cycleText() {
-      const newText = flipboardText[currentIndex];
-      animateFlipText(newText);
-      currentIndex = (currentIndex + 1) % flipboardText.length;
-    }
-
-    // INIT
-    updateBoard(flipboardText[0]);
-    currentIndex = 1;
-
-    setInterval(cycleText, flipInterval);
-  </script>
+  <div id="flipboard" class="flipboard-container"></div>
+  <audio id="tickAudio" src="tick.mp3" preload="auto"></audio>
+  <script src="script.js"></script>
 </body>
 </html>
