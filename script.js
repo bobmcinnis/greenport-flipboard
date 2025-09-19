@@ -1,4 +1,3 @@
-// Split-flap board using image halves generated in /assets/top and /assets/bottom
 const board = document.getElementById('board');
 const tick = document.getElementById('tick');
 const muteBtn = document.getElementById('mute');
@@ -47,19 +46,20 @@ function createCell(ch = " ") {
 
 function setMessage(text) {
   const chars = Array.from(text.toUpperCase());
-  // Resize board
   while (board.children.length < chars.length) board.appendChild(createCell(" "));
   while (board.children.length > chars.length) board.removeChild(board.lastChild);
 
-  // Flip all cells simultaneously
-  chars.forEach((target, i) => flipCellTo(board.children[i], target));
+  chars.forEach((target, i) => {
+    setTimeout(() => {
+      flipCellTo(board.children[i], target);
+    }, i * 120);  // staggered stop left → right
+  });
 }
 
 function flipCellTo(cell, target) {
   const current = cell.dataset.char || " ";
   if (current === target) return;
 
-  // Decide intermediate steps to mimic cycling through characters
   const steps = computeSteps(current, target);
   runSteps(cell, steps, 0);
 }
@@ -68,12 +68,9 @@ function computeSteps(from, to) {
   const steps = [];
   const start = CHARSET.indexOf(from);
   const end = CHARSET.indexOf(to);
-  if (start < 0 || end < 0) {
-    steps.push(to);
-    return steps;
-  }
+  if (start < 0 || end < 0) return [to];
+
   let idx = start;
-  // Allow up to 6 flips including target for speed/realism
   while (idx !== end && steps.length < 5) {
     idx = (idx + 1) % CHARSET.length;
     steps.push(CHARSET[idx]);
@@ -90,40 +87,34 @@ function runSteps(cell, steps, k) {
   const flipTop = cell.querySelector('.flip-top');
   const flipBottom = cell.querySelector('.flip-bottom');
 
-  // Prepare flip images: top uses CURRENT, bottom uses NEXT
   const curr = cell.dataset.char || " ";
   flipTop.style.backgroundImage = `url(${assetPathTop(curr)})`;
   flipBottom.style.backgroundImage = `url(${assetPathBottom(nextChar)})`;
 
-  // Start top animation
   cell.classList.add('animating', 'anim-top');
   if (!muted) { try { tick.currentTime = 0; tick.play(); } catch(e){} }
 
   flipTop.addEventListener('animationend', function onTopEnd() {
     flipTop.removeEventListener('animationend', onTopEnd);
-    // After top closes, swap static TOP to NEXT
     top.style.backgroundImage = `url(${assetPathTop(nextChar)})`;
-    // Start bottom animation opening to NEXT
     cell.classList.remove('anim-top');
     cell.classList.add('anim-bottom');
     if (!muted) { try { tick.currentTime = 0; tick.play(); } catch(e){} }
 
     flipBottom.addEventListener('animationend', function onBotEnd() {
       flipBottom.removeEventListener('animationend', onBotEnd);
-      // Finish: set static bottom to NEXT, clear anim flags, update char
       bottom.style.backgroundImage = `url(${assetPathBottom(nextChar)})`;
       cell.classList.remove('anim-bottom', 'animating');
       cell.dataset.char = nextChar;
-      // Next step in sequence
       setTimeout(() => runSteps(cell, steps, k+1), 20);
     }, { once: true });
   }, { once: true });
 }
 
-// Demo rotation
+// Demo messages
 const messages = [
   "WELCOME TO GREENPORT EXPRESS STATION!",
-  "NEXT DEPARTURE: 01:00 PM",
+  "NEXT DEPARTURE 01:00 PM",
   "THANK YOU TO OUR SPONSORS",
   "ALL ABOARD THE GREENPORT EXPRESS"
 ];
