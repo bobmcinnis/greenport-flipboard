@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Greenport Solari with Timetable Flip-on-Change</title>
+<style>
+  body { background:#111; color:#eee; font-family:Arial,sans-serif; text-align:center; margin:0; padding:20px; }
+  .board, .sponsors, .timetableRow {
+    display:flex; justify-content:center; margin:20px auto;
+    flex-wrap:nowrap; width:100%; max-width:95vw;
+  }
+  .flap { position:relative; flex:1; margin:1px; aspect-ratio:2/3; perspective:600px; }
+  .top, .bottom { position:absolute; width:100%; height:50%; left:0; background:#333; backface-visibility:hidden; overflow:hidden; }
+  .top img, .bottom img { width:100%; height:100%; object-fit:contain; }
+  .top { top:0; transform-origin:bottom; }
+  .bottom { bottom:0; transform-origin:top; transform:rotateX(180deg); }
+  .flap.animate .top { animation:flipTop 0.4s forwards; }
+  .flap.animate .bottom { animation:flipBottom 0.4s forwards; }
+  @keyframes flipTop { 0%{transform:rotateX(0deg);} 100%{transform:rotateX(-180deg);} }
+  @keyframes flipBottom { 0%{transform:rotateX(180deg);} 100%{transform:rotateX(0deg);} }
+  #muteBtn { position:fixed; top:15px; right:15px; background:#444; color:#fff; border:none; border-radius:50%; width:40px; height:40px; cursor:pointer; font-size:18px; z-index:999; }
+  #countdown { margin-top:15px; font-size:1.2rem; color:#ffeb3b; }
+</style>
+</head>
+<body>
+<h1>Greenport Solari</h1>
+<div class="board" id="mainBoard"></div>
+<div id="countdown">Next Departure in -- min</div>
+<div id="timetable"></div>
+<h2>Sponsors</h2>
+<div class="sponsors" id="sponsorBoard"></div>
+
+<button id="muteBtn">🔊</button>
+<audio id="tick" src="tick.m4a" preload="auto"></audio>
+
+<script>
+let phrases = {main:[], sponsors:[], departures:[]};
+let mainIndex=0, sponsorIndex=0, soundEnabled=true;
+let currentDepartureIndex=0;
+let lastDisplayedTimes=[];
+
+const mainBoard=document.getElementById("mainBoard");
+const sponsorBoard=document.getElementById("sponsorBoard");
+const tickSound=document.getElementById("tick");
+const muteBtn=document.getElementById("muteBtn");
+const countdownEl=document.getElementById("countdown");
+const timetableEl=document.getElementById("timetable");
+
+muteBtn.addEventListener("click",()=>{
+  soundEnabled=!soundEnabled;
+  muteBtn.textContent=soundEnabled?"🔊":"🔇";
+});
+
+async function loadPhrases(){
+  const res=await fetch("phrases.json");
+  phrases=await res.json();
+  phrases.departures=phrases.departures.map(d=>new Date(d));
+  updateNextDepartureIndex();
+  cycleMain(); cycleSponsors();
+  setInterval(cycleMain,5000);
+  setInterval(cycleSponsors,4000);
+  setInterval(updateCountdown,1000);
+}
+
+function updateNextDepartureIndex(){
+  const now=new Date();
+  currentDepartureIndex=phrases.departures.findIndex(d=>d>now);
+  if(currentDepartureIndex===-1){
+    countdownEl.textContent="No more departures today";
+    timetableEl.innerHTML="";
+  }
+}
+
+function buildBoard(word,board,size="main"){
+  board.innerHTML="";
+  for(let i=0;i<word.length;i++){
+    const letter=word[i]===" "?"space":word[i];
+    const flap=document.createElement("div");
+    flap.className="flap";
+    flap.id=size+"Flap"+i;
+    flap.innerHTML=`
+      <div class="top"><img src="greenport_splitflap_basic/assets/top/${letter}.png"></div>
+      <div class="bottom"><img src="greenport_splitflap_basic/assets/bottom/${letter}.png"></div>
+    `;
+    board.appendChild(flap);
+  }
+}
+
+function animateWord(word,board,size="main"){
+  buildBoard(word,board,size);
+  for(let i=0;i<word.length;i++){
+    setTimeout(()=>{
+      const flap=document.getElementById(size+"Flap"+i);
+      flap.classList.remove("animate"); void flap.offsetWidth;
+      flap.classList.add("animate");
+      if(soundEnabled){ tickSound.currentTime=0; tickSound.play(); }
+    },i*100);
+  }
+}
+
+function cycleMain(){
+  animateWord(phrases.main[mainIndex],mainBoard,"main");
+  mainIndex=(mainIndex+1)%phrases.main.length;
+}
+function cycleSponsors(){
+  animateWord(phrases.sponsors[sponsorIndex],sponsorBoard,"sponsor");
+  sponsorIndex=(sponsorIndex+1)%phrases.sponsors.length;
+}
+
+function updateCountdown(){
+  if(currentDepartureIndex===-1) return;
+  const now=new Date();
+  const target=phrases.departures[currentDepartureIndex];
+  const diff=target-now;
+  if(diff<=0){
+    currentDepartureIndex++;
+    if(currentDepartureIndex>=phrases.departures.length){
+      countdownEl.textContent="No more departures today";
+      timetableEl.innerHTML="";
+      return;
+    }
+  }
+  const mins=Math.floor(diff/60000);
+  const secs=Math.floor((diff%60000)/1000);
+  countdownEl.textContent=`Next Departure in ${mins} min ${secs} sec`;
+
+  const upcoming=phrases.departures.slice(currentDepartureIndex,currentDepartureIndex+3);
+  const newTimes=upcoming.map(d=>d.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}));
+  if(JSON.stringify(newTimes)!==JSON.stringify(lastDisplayedTimes)){
+    timetableEl.innerHTML="";
+    upcoming.forEach((d,i)=>{
+      const row=document.createElement("div");
+      row.className="timetableRow";
+      const timeStr=d.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
+      animateWord(timeStr,row,"row"+i);
+      timetableEl.appendChild(row);
+    });
+    lastDisplayedTimes=newTimes;
+  }
+}
+
+loadPhrases();
+</script>
+</body>
+</html>
