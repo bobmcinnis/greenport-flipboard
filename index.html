@@ -7,302 +7,63 @@
 <style>
   body { background:#111; color:#eee; font-family:Arial,sans-serif; text-align:center; margin:0; padding:20px; }
   h1, h2 { margin: 12px 0; }
-
-  /* Rows fill width */
-  .board, .sponsors, .timetableRow {
-    display:flex; justify-content:center; margin:20px auto;
-    flex-wrap:nowrap; width:100%; max-width:95vw;
-  }
-
-  /* Each tile */
-  .flap {
-    position:relative; flex:1; margin:1px; aspect-ratio: 2/3; perspective:600px;
-  }
-
-  /* Halves */
-  .half {
-    position:absolute; width:100%; height:50%; left:0; overflow:hidden;
-    backface-visibility: hidden;
-  }
-
-.top img { transform: translateY(2px); }     /* moves top half down slightly */
-.bottom img { transform: translateY(-2px); } /* moves bottom half up slightly */
-  
-.top img { transform: translateY(2px); }     /* moves top half down slightly */
-.bottom img { transform: translateY(-2px); } /* moves bottom half up slightly */
-  
-  .top img { transform: translateY(1px); }     /* moves top half down slightly */
-.bottom img { transform: translateY(-1px%); } /* moves bottom half up slightly */
+  .board, .sponsors, .timetableRow { display:flex; justify-content:center; margin:20px auto; flex-wrap:nowrap; width:100%; max-width:95vw; }
+  .flap { position:relative; flex:1; margin:1px; aspect-ratio: 2/3; perspective:600px; }
+  .half { position:absolute; width:100%; height:50%; left:0; overflow:hidden; backface-visibility: hidden; }
   .half img { width:100%; height:100%; object-fit:contain; display:block; }
-
   .top { top:0;  transform-origin:bottom; transform: rotateX(0deg); }
-  .bottom { bottom:0; transform-origin:top;    transform: rotateX(0deg); }
-
-  /* Tighten the hinge gap */
+  .bottom { bottom:0; transform-origin:top; transform: rotateX(0deg); }
   .top img { transform: translateY(1.5%); }
   .bottom img { transform: translateY(-1.5%); }
-
-  /* Flip animations (two-phase) */
   .flip-top .top { animation: topOut 0.25s linear forwards; }
   @keyframes topOut { 0% {transform:rotateX(0)} 100% {transform:rotateX(-90deg)} }
-
   .flip-bottom .bottom { animation: bottomIn 0.25s linear forwards; }
   @keyframes bottomIn { 0% {transform:rotateX(90deg)} 100% {transform:rotateX(0)} }
-
-  /* Mute button */
-  #muteBtn {
-    position: fixed; top: 15px; right: 15px;
-    background: #444; color: #fff; border: none;
-    border-radius: 50%; width: 40px; height: 40px;
-    cursor: pointer; font-size: 18px; z-index: 999;
-  }
-
-  /* Countdown */
+  #muteBtn { position: fixed; top: 15px; right: 15px; background: #444; color: #fff; border: none; border-radius: 50%; width: 40px; height: 40px; cursor: pointer; font-size: 18px; z-index: 999; }
   #countdown { margin-top: 8px; font-size: 1.15rem; color: #ffeb3b; }
-
-  /* Responsive tweaks */
-  @media (max-width: 768px) {
-    .board, .sponsors { max-width:100vw; }
-    .flap { margin:0.5px; }
-    #countdown { font-size: 1rem; }
-  }
-  @media (max-width: 480px) {
-    .flap { margin:0.25px; }
-    h1, h2 { font-size: 1rem; }
-    #countdown { font-size: 0.95rem; }
-  }
 </style>
 </head>
 <body>
   <h1>Greenport Solari</h1>
-
-  <!-- Main board -->
-  <div class="board" id="mainBoard"></"></div>
+  <div class="board" id="mainBoard"></div>
   <div id="countdown">Next Departure in -- min -- sec</div>
-
-  <!-- Mini timetable (next 3 departures) -->
   <div id="timetable"></div>
-
   <h2>Sponsors</h2>
   <div class="sponsors" id="sponsorBoard"></div>
-
   <button id="muteBtn" aria-label="Toggle sound">🔊</button>
   <audio id="tick" src="tick.m4a" preload="auto"></audio>
-
 <script>
 const ASSET_BASE = "greenport_splitflap_basic/assets";
-const NAME_MAP = {
-  ":" : "colon", "-" : "dash", "." : "period", "," : "comma",
-  "/" : "slash", "&" : "ampersand", "?" : "question",
-  "!" : "exclamation", " " : "space"
-};
+const NAME_MAP = { ":" : "colon", "-" : "dash", "." : "period", "," : "comma", "/" : "slash", "&" : "ampersand", "?" : "question", "!" : "exclamation", " " : "space" };
 function labelFor(ch){ return NAME_MAP[ch] ?? ch; }
-
-const mainBoard = document.getElementById("mainBoard");
-const sponsorBoard = document.getElementById("sponsorBoard");
-const timetableEl = document.getElementById("timetable");
-const countdownEl = document.getElementById("countdown");
-const tickSound = document.getElementById("tick");
-const muteBtn = document.getElementById("muteBtn");
-
-let soundEnabled = true;
-let phrases = { main:[], sponsors:[], departures:[] };
-let mainIndex = 0, sponsorIndex = 0;
-let currentMain = "", currentSponsor = "";
-let currentDepartureIndex = 0;
-let previousTimetableStrs = [];
-
-muteBtn.addEventListener("click", () => {
-  soundEnabled = !soundEnabled;
-  muteBtn.textContent = soundEnabled ? "🔊" : "🔇";
-});
-
-/* ------------ Split-flap builders & flips ------------ */
-function buildFlapHTML(ch) {
-  const label = labelFor(ch);
-  return `
-    <div class="half top">
-      <img class="current" src="${ASSET_BASE}/top/${label}.png" alt="">
-      <img class="next"    src="${ASSET_BASE}/top/${label}.png" alt="" style="display:none;">
-    </div>
-    <div class="half bottom">
-      <img class="current" src="${ASSET_BASE}/bottom/${label}.png" alt="">
-      <img class="next"    src="${ASSET_BASE}/bottom/${label}.png" alt="" style="display:none;">
-    </div>
-  `;
-}
-
-function buildBoardExact(word, board, idPrefix="row") {
-  board.innerHTML = "";
-  for (let i = 0; i < word.length; i++) {
-    const ch = word[i];
-    const flap = document.createElement("div");
-    flap.className = "flap";
-    flap.id = `${idPrefix}Flap${i}`;
-    flap.innerHTML = buildFlapHTML(ch);
-    board.appendChild(flap);
-  }
-}
-
-function flipTile(flap, fromCh, toCh, playTick) {
-  if (fromCh === toCh) return;
-
-  const topHalf = flap.querySelector(".top");
-  const bottomHalf = flap.querySelector(".bottom");
-
-  const topCur = topHalf.querySelector("img.current");
-  const topNext = topHalf.querySelector("img.next");
-  const botCur = bottomHalf.querySelector("img.current");
-  const botNext = bottomHalf.querySelector("img.next");
-
-  const toLabel = labelFor(toCh);
-  topNext.src = \`\${ASSET_BASE}/top/\${toLabel}.png\`;
-  botNext.src = \`\${ASSET_BASE}/bottom/\${toLabel}.png\`;
-
-  // Phase A: top flips out
-  flap.classList.add("flip-top");
-  if (playTick) { try { tickSound.currentTime = 0; tickSound.play(); } catch(e){} }
-
-  topHalf.addEventListener("animationend", function onTopEnd() {
-    topHalf.removeEventListener("animationend", onTopEnd);
-    flap.classList.remove("flip-top");
-
-    // Mid-flip: swap both halves to 'next'
-    topCur.src = topNext.src;
-    botCur.src = botNext.src;
-
-    // Prepare bottom entering at 90deg
-    bottomHalf.style.transform = "rotateX(90deg)";
-
-    // Phase B: bottom flips in
-    flap.classList.add("flip-bottom");
-    if (playTick) { try { tickSound.currentTime = 0; tickSound.play(); } catch(e){} }
-
-    bottomHalf.addEventListener("animationend", function onBottomEnd() {
-      bottomHalf.removeEventListener("animationend", onBottomEnd);
-      flap.classList.remove("flip-bottom");
-      bottomHalf.style.transform = ""; // cleanup
-    }, { once: true });
-  }, { once: true });
-}
-
-function flipRowTo(board, currentText, targetText, idPrefix="row", staggerMs=100, playTick=true) {
-  const len = Math.max(currentText.length, targetText.length);
-  // Pad strings with spaces so indices line up
-  const cur = (currentText + " ".repeat(len)).slice(0, len);
-  const next = (targetText + " ".repeat(len)).slice(0, len);
-
-  // Ensure DOM has correct length
-  if (board.children.length !== len) {
-    buildBoardExact(cur, board, idPrefix);
-  }
-
-  for (let i = 0; i < len; i++) {
-    const flap = document.getElementById(\`\${idPrefix}Flap\${i}\`);
-    const fromCh = cur[i];
-    const toCh = next[i];
-    setTimeout(() => flipTile(flap, fromCh, toCh, playTick), i * staggerMs);
-  }
-}
-
-/* ---------------- App logic ---------------- */
-async function loadPhrases() {
-  const res = await fetch("phrases.json");
-  phrases = await res.json();
-  phrases.departures = phrases.departures.map(d => new Date(d));
-
-  currentMain = phrases.main[0] || "";
-  buildBoardExact(currentMain, mainBoard, "main");
-
-  currentSponsor = phrases.sponsors[0] || "";
-  buildBoardExact(currentSponsor, sponsorBoard, "sponsor");
-
-  updateNextDepartureIndex();
-  renderOrFlipTimetable(true);
-
-  setInterval(cycleMain, 5000);
-  setInterval(cycleSponsors, 4000);
-  setInterval(tickCountdownAndTimetable, 1000);
-}
-
-function cycleMain() {
-  const nextMain = phrases.main[mainIndex];
-  flipRowTo(mainBoard, currentMain, nextMain, "main", 100, soundEnabled);
-  currentMain = nextMain;
-  mainIndex = (mainIndex + 1) % phrases.main.length;
-}
-
-function cycleSponsors() {
-  const nextSponsor = phrases.sponsors[sponsorIndex];
-  flipRowTo(sponsorBoard, currentSponsor, nextSponsor, "sponsor", 90, soundEnabled);
-  currentSponsor = nextSponsor;
-  sponsorIndex = (sponsorIndex + 1) % phrases.sponsors.length;
-}
-
-function updateNextDepartureIndex() {
-  const now = new Date();
-  currentDepartureIndex = phrases.departures.findIndex(d => d > now);
-  if (currentDepartureIndex === -1) {
-    countdownEl.textContent = "No more departures today";
-  }
-}
-
-function formatTime(d) {
-  return d.toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" });
-}
-
-function renderOrFlipTimetable(initial=false) {
-  if (currentDepartureIndex === -1) {
-    timetableEl.innerHTML = "";
-    return;
-  }
-  const upcoming = phrases.departures.slice(currentDepartureIndex, currentDepartureIndex + 3);
-  const newTimes = upcoming.map(formatTime);
-
-  if (initial || JSON.stringify(newTimes) !== JSON.stringify(previousTimetableStrs)) {
-    if (initial || timetableEl.children.length !== newTimes.length) {
-      timetableEl.innerHTML = "";
-      newTimes.forEach((s, i) => {
-        const row = document.createElement("div");
-        row.className = "timetableRow";
-        row.id = \`row\${i}\`;
-        timetableEl.appendChild(row);
-        buildBoardExact(s, row, \`row\${i}\`);
-      });
-    } else {
-      newTimes.forEach((s, i) => {
-        const row = document.getElementById(\`row\${i}\`);
-        const oldStr = previousTimetableStrs[i] || "";
-        flipRowTo(row, oldStr, s, \`row\${i}\`, 80, soundEnabled);
-      });
-    }
-    previousTimetableStrs = [...newTimes];
-  }
-}
-
-function tickCountdownAndTimetable() {
-  if (currentDepartureIndex === -1) return;
-
-  const now = new Date();
-  const target = phrases.departures[currentDepartureIndex];
-  let diff = target - now;
-
-  if (diff <= 0) {
-    currentDepartureIndex++;
-    if (currentDepartureIndex >= phrases.departures.length) {
-      countdownEl.textContent = "No more departures today";
-      timetableEl.innerHTML = "";
-      return;
-    }
-    renderOrFlipTimetable(false);
-    diff = phrases.departures[currentDepartureIndex] - new Date();
-  }
-
-  const mins = Math.floor(diff / 60000);
-  const secs = Math.floor((diff % 60000) / 1000);
-  countdownEl.textContent = \`Next Departure in \${mins} min \${secs} sec\`;
-}
-
+const mainBoard=document.getElementById("mainBoard"),sponsorBoard=document.getElementById("sponsorBoard"),timetableEl=document.getElementById("timetable"),countdownEl=document.getElementById("countdown"),tickSound=document.getElementById("tick"),muteBtn=document.getElementById("muteBtn");
+let soundEnabled=true,phrases={main:[],sponsors:[],departures:[]},mainIndex=0,sponsorIndex=0,currentMain="",currentSponsor="",currentDepartureIndex=0,previousTimetableStrs=[];
+muteBtn.addEventListener("click",()=>{soundEnabled=!soundEnabled;muteBtn.textContent=soundEnabled?"🔊":"🔇"});
+function buildFlapHTML(ch){const label=labelFor(ch);return`
+<div class="half top">
+  <img class="current" src="${ASSET_BASE}/top/${label}.png"><img class="next" src="${ASSET_BASE}/top/${label}.png" style="display:none;">
+</div>
+<div class="half bottom">
+  <img class="current" src="${ASSET_BASE}/bottom/${label}.png"><img class="next" src="${ASSET_BASE}/bottom/${label}.png" style="display:none;">
+</div>`}
+function buildBoardExact(word,board,idPrefix="row"){board.innerHTML="";for(let i=0;i<word.length;i++){const ch=word[i],flap=document.createElement("div");flap.className="flap";flap.id=`${idPrefix}Flap${i}`;flap.innerHTML=buildFlapHTML(ch);board.appendChild(flap)}}
+function flipTile(flap,fromCh,toCh,playTick){if(fromCh===toCh)return;const topHalf=flap.querySelector(".top"),bottomHalf=flap.querySelector(".bottom"),topCur=topHalf.querySelector("img.current"),topNext=topHalf.querySelector("img.next"),botCur=bottomHalf.querySelector("img.current"),botNext=bottomHalf.querySelector("img.next"),toLabel=labelFor(toCh);
+topNext.src=`${ASSET_BASE}/top/${toLabel}.png`;botNext.src=`${ASSET_BASE}/bottom/${toLabel}.png`;flap.classList.add("flip-top");if(playTick){try{tickSound.currentTime=0;tickSound.play()}catch(e){}}
+topHalf.addEventListener("animationend",function onTopEnd(){topHalf.removeEventListener("animationend",onTopEnd);flap.classList.remove("flip-top");topCur.src=topNext.src;botCur.src=botNext.src;bottomHalf.style.transform="rotateX(90deg)";flap.classList.add("flip-bottom");if(playTick){try{tickSound.currentTime=0;tickSound.play()}catch(e){}}
+bottomHalf.addEventListener("animationend",function onBottomEnd(){bottomHalf.removeEventListener("animationend",onBottomEnd);flap.classList.remove("flip-bottom");bottomHalf.style.transform=""},{once:true})},{once:true})}
+function flipRowTo(board,currentText,targetText,idPrefix="row",staggerMs=100,playTick=true){const len=Math.max(currentText.length,targetText.length),cur=(currentText+" ".repeat(len)).slice(0,len),next=(targetText+" ".repeat(len)).slice(0,len);
+if(board.children.length!==len)buildBoardExact(cur,board,idPrefix);for(let i=0;i<len;i++){const flap=document.getElementById(`${idPrefix}Flap${i}`),fromCh=cur[i],toCh=next[i];setTimeout(()=>flipTile(flap,fromCh,toCh,playTick),i*staggerMs)}}
+async function loadPhrases(){const res=await fetch("phrases.json");phrases=await res.json();phrases.departures=phrases.departures.map(d=>new Date(d));currentMain=phrases.main[0]||"";buildBoardExact(currentMain,mainBoard,"main");currentSponsor=phrases.sponsors[0]||"";buildBoardExact(currentSponsor,sponsorBoard,"sponsor");updateNextDepartureIndex();renderOrFlipTimetable(true);
+setInterval(cycleMain,5000);setInterval(cycleSponsors,4000);setInterval(tickCountdownAndTimetable,1000)}
+function cycleMain(){const nextMain=phrases.main[mainIndex];flipRowTo(mainBoard,currentMain,nextMain,"main",100,soundEnabled);currentMain=nextMain;mainIndex=(mainIndex+1)%phrases.main.length}
+function cycleSponsors(){const nextSponsor=phrases.sponsors[sponsorIndex];flipRowTo(sponsorBoard,currentSponsor,nextSponsor,"sponsor",90,soundEnabled);currentSponsor=nextSponsor;sponsorIndex=(sponsorIndex+1)%phrases.sponsors.length}
+function updateNextDepartureIndex(){const now=new Date();currentDepartureIndex=phrases.departures.findIndex(d=>d>now);if(currentDepartureIndex===-1){countdownEl.textContent="No more departures today"}}
+function formatTime(d){return d.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}
+function renderOrFlipTimetable(initial=false){if(currentDepartureIndex===-1){timetableEl.innerHTML="";return}const upcoming=phrases.departures.slice(currentDepartureIndex,currentDepartureIndex+3),newTimes=upcoming.map(formatTime);
+if(initial||JSON.stringify(newTimes)!==JSON.stringify(previousTimetableStrs)){if(initial||timetableEl.children.length!==newTimes.length){timetableEl.innerHTML="";newTimes.forEach((s,i)=>{const row=document.createElement("div");row.className="timetableRow";row.id=`row${i}`;timetableEl.appendChild(row);buildBoardExact(s,row,`row${i}`)})}
+else{newTimes.forEach((s,i)=>{const row=document.getElementById(`row${i}`),oldStr=previousTimetableStrs[i]||"";flipRowTo(row,oldStr,s,`row${i}`,80,soundEnabled)})}previousTimetableStrs=[...newTimes]}}
+function tickCountdownAndTimetable(){if(currentDepartureIndex===-1)return;const now=new Date(),target=phrases.departures[currentDepartureIndex];let diff=target-now;if(diff<=0){currentDepartureIndex++;if(currentDepartureIndex>=phrases.departures.length){countdownEl.textContent="No more departures today";timetableEl.innerHTML="";return}renderOrFlipTimetable(false);diff=phrases.departures[currentDepartureIndex]-new Date()}
+const mins=Math.floor(diff/60000),secs=Math.floor((diff%60000)/1000);countdownEl.textContent=`Next Departure in ${mins} min ${secs} sec`}
 loadPhrases();
 </script>
 </body>
