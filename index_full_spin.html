@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Greenport Solari — 10 Rows, Scaled, Hairline Seam, Full Spin</title>
+<style>
+  :root{
+    --cols: 20;
+    --tile-w: 56px;
+    --tile-h: 78px;
+    --gap: 8px;
+    --seam: 1px;
+  }
+  * { box-sizing: border-box; }
+  body{
+    margin:0; padding:24px 12px 60px;
+    background:#111; color:#eee;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    text-align:center;
+  }
+  h1{ margin: 6px 0 18px; font-weight: 800; }
+
+  .board{
+    margin: 0 auto;
+    width: min(98vw, 1600px);
+    display: grid;
+    grid-template-columns: repeat(var(--cols), var(--tile-w));
+    grid-auto-rows: var(--tile-h);
+    gap: var(--gap);
+    justify-content: center;
+  }
+  .row{
+    display: grid;
+    grid-template-columns: inherit;
+    grid-column: 1 / -1;
+    gap: var(--gap);
+    justify-content: center;
+  }
+  .flap{
+    position: relative;
+    width: var(--tile-w);
+    height: var(--tile-h);
+    perspective: 900px;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #2d2d2d;
+  }
+  .flap::after{
+    content:"";
+    position:absolute;
+    left:0; top:50%;
+    width:100%;
+    height: var(--seam);
+    background: #0b0b0b;
+    transform: translateY(calc(-1 * var(--seam) / 2));
+    z-index: 4;
+  }
+  .half{
+    position:absolute;
+    left:0;
+    width:100%;
+    overflow:hidden;
+    backface-visibility: hidden;
+  }
+  .top{
+    top:0;
+    height: calc(50% - var(--seam)/2);
+    transform-origin: bottom;
+    background: linear-gradient(#3c3c3f,#2c2c2f);
+    z-index: 2;
+  }
+  .bottom{
+    bottom:0;
+    height: calc(50% - var(--seam)/2);
+    transform-origin: top;
+    background: linear-gradient(#222,#313133);
+    z-index: 1;
+  }
+  .half img{
+    position:absolute;
+    width:100%;
+    height:100%;
+    object-fit: cover;
+    display:block;
+  }
+  .top img{ bottom:0; }
+  .bottom img{ top:0; }
+
+  .flip-top .top { animation: topOut .16s linear forwards; }
+  @keyframes topOut { from{transform:rotateX(0)} to{transform:rotateX(-90deg)} }
+  .flip-bottom .bottom { animation: bottomIn .16s linear forwards; }
+  @keyframes bottomIn { from{transform:rotateX(90deg)} to{transform:rotateX(0)} }
+
+  @media (max-width: 600px){
+    :root{ --gap: 6px; }
+  }
+</style>
+</head>
+<body>
+  <h1>Greenport Solari</h1>
+  <div id="board" class="board"></div>
+
+<script>
+/* =================== CONFIG =================== */
+const ROWS = 10;
+const ASSET_BASE = "greenport_splitflap_basic/assets";
+const NAME_MAP = {":":"colon","-":"dash",".":"period",",":"comma","/":"slash","&":"ampersand","?":"question","!":"exclamation"," ":"space"};
+const CHARSET = [
+  " ", "0","1","2","3","4","5","6","7","8","9",
+  "A","B","C","D","E","F","G","H","I","J","K","L","M",
+  "N","O","P","Q","R","S","T","U","V","W","X","Y","Z",
+  ":", "-", ".", ",", "/", "&", "?", "!"
+];
+const charLabel = ch => NAME_MAP[ch] ?? ch;
+
+const board = document.getElementById("board");
+let rows = [];
+let currentTexts = [];
+
+async function loadPhrases(){
+  try{
+    const r = await fetch("phrases.json",{cache:"no-store"});
+    if(!r.ok) throw new Error("no phrases.json");
+    const json = await r.json();
+    const lines = (json.main || ["DEPARTURES TODAY"]).slice(0, ROWS);
+    while(lines.length < ROWS){
+      const s = (json.sponsors && json.sponsors[(lines.length) % json.sponsors.length]) || "";
+      lines.push(s || "");
+    }
+    return lines.map(s=>s.toUpperCase());
+  }catch(e){
+    const seed = [
+      "DEPARTURES TODAY",
+      "NOW BOARDING  TRACK 1",
+      "WELCOME TO GREENPORT",
+      "GREENPORT EXPRESS",
+      "THANKS TO CLAUDIO'S",
+      "ALDO'S COFFEE",
+      "SATNICK JEWELERS",
+      "NEXT DEPARTURE 01:00 PM",
+      "PLATFORM  1",
+      "HAVE A GREAT TRIP"
+    ];
+    return seed.map(s=>s.toUpperCase());
+  }
+}
+
+function computeCols(texts){
+  return texts.reduce((m,t)=> Math.max(m, t.length), 1);
+}
+
+function setScaleForCols(cols){
+  const style = getComputedStyle(document.documentElement);
+  const gap = parseFloat(style.getPropertyValue('--gap')) || 8;
+  const boardWidth = Math.min(window.innerWidth*0.98, 1600);
+  const tileW = Math.max(24, Math.floor((boardWidth - (cols-1)*gap) / cols));
+  const tileH = Math.floor(tileW * 1.35);
+  document.documentElement.style.setProperty('--cols', cols);
+  document.documentElement.style.setProperty('--tile-w', tileW + "px");
+  document.documentElement.style.setProperty('--tile-h', tileH + "px");
+}
+
+function makeFlapHTML(ch){
+  const label = charLabel(ch);
+  return `<div class="half top">
+            <img class="current" src="${ASSET_BASE}/top/${label}.png" alt="">
+            <img class="next"    src="${ASSET_BASE}/top/${label}.png" style="display:none" alt="">
+          </div>
+          <div class="half bottom">
+            <img class="current" src="${ASSET_BASE}/bottom/${label}.png" alt="">
+            <img class="next"    src="${ASSET_BASE}/bottom/${label}.png" style="display:none" alt="">
+          </div>`;
+}
+
+function buildRowDOM(text, rowIndex){
+  const row = document.createElement("div");
+  row.className = "row";
+  const cols = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--cols')) || text.length;
+  const padded = (text + " ".repeat(cols)).slice(0, cols);
+  for(let i=0;i<cols;i++){
+    const d = document.createElement("div");
+    d.className = "flap";
+    d.id = `r${rowIndex}c${i}`;
+    d.innerHTML = makeFlapHTML(padded[i]);
+    row.appendChild(d);
+  }
+  return row;
+}
+
+function buildBoard(texts){
+  board.innerHTML = "";
+  rows = [];
+  currentTexts = [];
+  const cols = computeCols(texts);
+  setScaleForCols(cols);
+  for(let r=0;r<ROWS;r++){
+    const text = (texts[r] || "");
+    const rowEl = buildRowDOM(text, r);
+    board.appendChild(rowEl);
+    rows.push(rowEl);
+    currentTexts.push(text.padEnd(cols, " ").slice(0, cols));
+  }
+}
+
+function flipOnceTo(flapEl, toCh, onDone){
+  const topHalf = flapEl.querySelector(".top");
+  const bottomHalf = flapEl.querySelector(".bottom");
+  const tCur = topHalf.querySelector("img.current");
+  const tNext = topHalf.querySelector("img.next");
+  const bCur = bottomHalf.querySelector("img.current");
+  const bNext = bottomHalf.querySelector("img.next");
+  const label = charLabel(toCh);
+  tNext.src = `${ASSET_BASE}/top/${label}.png`;
+  bNext.src = `${ASSET_BASE}/bottom/${label}.png`;
+
+  flapEl.classList.add("flip-top");
+  topHalf.addEventListener("animationend", function onTop(){
+    topHalf.removeEventListener("animationend", onTop);
+    flapEl.classList.remove("flip-top");
+    tCur.src = tNext.src; bCur.src = bNext.src;
+    bottomHalf.style.transform = "rotateX(90deg)";
+    flapEl.classList.add("flip-bottom");
+    bottomHalf.addEventListener("animationend", function onBottom(){
+      bottomHalf.removeEventListener("animationend", onBottom);
+      flapEl.classList.remove("flip-bottom");
+      bottomHalf.style.transform = "";
+      onDone && onDone();
+    }, { once:true });
+  }, { once:true });
+}
+
+function spinSequence(flapEl, startCh, targetCh, flipsPerStep=32, extraTurns=1){
+  // Produce a list of intermediate characters cycling through CHARSET
+  const idx = (ch)=> CHARSET.indexOf(ch)>=0 ? CHARSET.indexOf(ch) : 0;
+  let startIdx = idx(startCh);
+  let endIdx   = idx(targetCh);
+  const totalSteps = extraTurns * CHARSET.length + ((endIdx - startIdx + CHARSET.length) % CHARSET.length || CHARSET.length);
+  // Limit the total steps to avoid huge sequences on mobile; divide into hops
+  const perHop = Math.max(1, Math.floor(CHARSET.length/4)); // hop by quarter set for speed
+  let step = 0;
+  function nextHop(){
+    if(step >= totalSteps){
+      // ensure final character
+      flipOnceTo(flapEl, targetCh);
+      return;
+    }
+    step += perHop;
+    const curIdx = (startIdx + step) % CHARSET.length;
+    const ch = CHARSET[curIdx];
+    flipOnceTo(flapEl, ch, nextHop);
+  }
+  nextHop();
+}
+
+function flipRowFullSpin(rowIndex, toText, staggerStartMs=30, extraTurnsBase=1){
+  const cols = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--cols'));
+  const from = currentTexts[rowIndex].padEnd(cols, " ").slice(0, cols);
+  const to   = (toText + " ".repeat(cols)).slice(0, cols);
+  for(let c=0;c<cols;c++){
+    const flapEl = document.getElementById(`r${rowIndex}c${c}`);
+    const extraTurns = extraTurnsBase + (c%3===0?1:0); // slight variation across columns
+    setTimeout(()=> spinSequence(flapEl, from[c], to[c], 32, extraTurns), c*staggerStartMs);
+  }
+  currentTexts[rowIndex] = to;
+}
+
+function cycleAll(textSets){
+  let i = 1;
+  setInterval(()=>{
+    const nextTexts = textSets[i % textSets.length];
+    const newCols = computeCols(nextTexts);
+    const curCols = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--cols'));
+    if(newCols !== curCols){
+      setScaleForCols(newCols);
+      buildBoard(currentTexts.map(t=>t.trim()));
+    }
+    for(let r=0;r<ROWS;r++){
+      // Start spins all at once, but their "landing" is naturally staggered by differing path lengths
+      flipRowFullSpin(r, nextTexts[r] || "", 15, 1);
+    }
+    i++;
+  }, 7000);
+}
+
+function generateTextSets(base){
+  const sets = [];
+  for(let k=0;k<5;k++){
+    const s = [];
+    for(let r=0;r<ROWS;r++){
+      const t = base[(r+k)%base.length] || "";
+      s.push(t);
+    }
+    sets.push(s);
+  }
+  return sets;
+}
+
+(async function init(){
+  const baseLines = await loadPhrases();
+  while(baseLines.length < ROWS) baseLines.push("");
+  if(baseLines.length > ROWS) baseLines.length = ROWS;
+
+  buildBoard(baseLines);
+  const textSets = generateTextSets(baseLines);
+  cycleAll(textSets);
+
+  window.addEventListener("resize", ()=>{
+    const cols = currentTexts.reduce((m,t)=> Math.max(m, t.trim().length), 1);
+    setScaleForCols(cols);
+  });
+})();
+</script>
+</body>
+</html>
