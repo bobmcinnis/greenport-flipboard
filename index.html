@@ -8,32 +8,39 @@
   body { background:#111; color:#eee; font-family:Arial,sans-serif; text-align:center; margin:0; padding:20px; }
   h1, h2 { margin: 12px 0; }
 
+  /* Rows fill width */
   .board, .sponsors, .timetableRow {
     display:flex; justify-content:center; margin:20px auto;
     flex-wrap:nowrap; width:100%; max-width:95vw;
   }
 
+  /* Each tile */
   .flap {
     position:relative; flex:1; margin:1px; aspect-ratio: 2/3; perspective:600px;
   }
 
+  /* Halves */
   .half {
     position:absolute; width:100%; height:50%; left:0; overflow:hidden;
     backface-visibility: hidden;
-
-.top img { transform: translateY(1%); }     /* moves top half down slightly */
-.bottom img { transform: translateY(-1%); } /* moves bottom half up slightly */
   }
   .half img { width:100%; height:100%; object-fit:contain; display:block; }
+
   .top { top:0;  transform-origin:bottom; transform: rotateX(0deg); }
   .bottom { bottom:0; transform-origin:top;    transform: rotateX(0deg); }
 
+  /* Tighten the hinge gap */
+  .top img { transform: translateY(1.5%); }
+  .bottom img { transform: translateY(-1.5%); }
+
+  /* Flip animations (two-phase) */
   .flip-top .top { animation: topOut 0.25s linear forwards; }
   @keyframes topOut { 0% {transform:rotateX(0)} 100% {transform:rotateX(-90deg)} }
 
   .flip-bottom .bottom { animation: bottomIn 0.25s linear forwards; }
   @keyframes bottomIn { 0% {transform:rotateX(90deg)} 100% {transform:rotateX(0)} }
 
+  /* Mute button */
   #muteBtn {
     position: fixed; top: 15px; right: 15px;
     background: #444; color: #fff; border: none;
@@ -41,8 +48,10 @@
     cursor: pointer; font-size: 18px; z-index: 999;
   }
 
+  /* Countdown */
   #countdown { margin-top: 8px; font-size: 1.15rem; color: #ffeb3b; }
 
+  /* Responsive tweaks */
   @media (max-width: 768px) {
     .board, .sponsors { max-width:100vw; }
     .flap { margin:0.5px; }
@@ -58,9 +67,11 @@
 <body>
   <h1>Greenport Solari</h1>
 
-  <div class="board" id="mainBoard"></div>
+  <!-- Main board -->
+  <div class="board" id="mainBoard"></"></div>
   <div id="countdown">Next Departure in -- min -- sec</div>
 
+  <!-- Mini timetable (next 3 departures) -->
   <div id="timetable"></div>
 
   <h2>Sponsors</h2>
@@ -97,6 +108,7 @@ muteBtn.addEventListener("click", () => {
   muteBtn.textContent = soundEnabled ? "🔊" : "🔇";
 });
 
+/* ------------ Split-flap builders & flips ------------ */
 function buildFlapHTML(ch) {
   const label = labelFor(ch);
   return `
@@ -135,9 +147,10 @@ function flipTile(flap, fromCh, toCh, playTick) {
   const botNext = bottomHalf.querySelector("img.next");
 
   const toLabel = labelFor(toCh);
-  topNext.src = `${ASSET_BASE}/top/${toLabel}.png`;
-  botNext.src = `${ASSET_BASE}/bottom/${toLabel}.png`;
+  topNext.src = \`\${ASSET_BASE}/top/\${toLabel}.png\`;
+  botNext.src = \`\${ASSET_BASE}/bottom/\${toLabel}.png\`;
 
+  // Phase A: top flips out
   flap.classList.add("flip-top");
   if (playTick) { try { tickSound.currentTime = 0; tickSound.play(); } catch(e){} }
 
@@ -145,38 +158,45 @@ function flipTile(flap, fromCh, toCh, playTick) {
     topHalf.removeEventListener("animationend", onTopEnd);
     flap.classList.remove("flip-top");
 
+    // Mid-flip: swap both halves to 'next'
     topCur.src = topNext.src;
     botCur.src = botNext.src;
 
+    // Prepare bottom entering at 90deg
     bottomHalf.style.transform = "rotateX(90deg)";
+
+    // Phase B: bottom flips in
     flap.classList.add("flip-bottom");
     if (playTick) { try { tickSound.currentTime = 0; tickSound.play(); } catch(e){} }
 
     bottomHalf.addEventListener("animationend", function onBottomEnd() {
       bottomHalf.removeEventListener("animationend", onBottomEnd);
       flap.classList.remove("flip-bottom");
-      bottomHalf.style.transform = "";
+      bottomHalf.style.transform = ""; // cleanup
     }, { once: true });
   }, { once: true });
 }
 
 function flipRowTo(board, currentText, targetText, idPrefix="row", staggerMs=100, playTick=true) {
   const len = Math.max(currentText.length, targetText.length);
+  // Pad strings with spaces so indices line up
   const cur = (currentText + " ".repeat(len)).slice(0, len);
   const next = (targetText + " ".repeat(len)).slice(0, len);
 
+  // Ensure DOM has correct length
   if (board.children.length !== len) {
     buildBoardExact(cur, board, idPrefix);
   }
 
   for (let i = 0; i < len; i++) {
-    const flap = document.getElementById(`${idPrefix}Flap${i}`);
+    const flap = document.getElementById(\`\${idPrefix}Flap\${i}\`);
     const fromCh = cur[i];
     const toCh = next[i];
     setTimeout(() => flipTile(flap, fromCh, toCh, playTick), i * staggerMs);
   }
 }
 
+/* ---------------- App logic ---------------- */
 async function loadPhrases() {
   const res = await fetch("phrases.json");
   phrases = await res.json();
@@ -236,15 +256,15 @@ function renderOrFlipTimetable(initial=false) {
       newTimes.forEach((s, i) => {
         const row = document.createElement("div");
         row.className = "timetableRow";
-        row.id = `row${i}`;
+        row.id = \`row\${i}\`;
         timetableEl.appendChild(row);
-        buildBoardExact(s, row, `row${i}`);
+        buildBoardExact(s, row, \`row\${i}\`);
       });
     } else {
       newTimes.forEach((s, i) => {
-        const row = document.getElementById(`row${i}`);
+        const row = document.getElementById(\`row\${i}\`);
         const oldStr = previousTimetableStrs[i] || "";
-        flipRowTo(row, oldStr, s, `row${i}`, 80, soundEnabled);
+        flipRowTo(row, oldStr, s, \`row\${i}\`, 80, soundEnabled);
       });
     }
     previousTimetableStrs = [...newTimes];
@@ -271,7 +291,7 @@ function tickCountdownAndTimetable() {
 
   const mins = Math.floor(diff / 60000);
   const secs = Math.floor((diff % 60000) / 1000);
-  countdownEl.textContent = `Next Departure in ${mins} min ${secs} sec`;
+  countdownEl.textContent = \`Next Departure in \${mins} min \${secs} sec\`;
 }
 
 loadPhrases();
