@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Greenport Solari — 10 Rows, Scaled, Hairline Seam, Full Spin</title>
+<title>Greenport Solari — Fast Alphabetical Spin</title>
 <style>
   :root{
     --cols: 20;
@@ -87,9 +87,10 @@
   .top img{ bottom:0; }
   .bottom img{ top:0; }
 
-  .flip-top .top { animation: topOut .16s linear forwards; }
+  /* MUCH FASTER half flips */
+  .flip-top .top { animation: topOut .06s linear forwards; }
   @keyframes topOut { from{transform:rotateX(0)} to{transform:rotateX(-90deg)} }
-  .flip-bottom .bottom { animation: bottomIn .16s linear forwards; }
+  .flip-bottom .bottom { animation: bottomIn .06s linear forwards; }
   @keyframes bottomIn { from{transform:rotateX(90deg)} to{transform:rotateX(0)} }
 
   @media (max-width: 600px){
@@ -106,13 +107,29 @@
 const ROWS = 10;
 const ASSET_BASE = "greenport_splitflap_basic/assets";
 const NAME_MAP = {":":"colon","-":"dash",".":"period",",":"comma","/":"slash","&":"ampersand","?":"question","!":"exclamation"," ":"space"};
-const CHARSET = [
-  " ", "0","1","2","3","4","5","6","7","8","9",
-  "A","B","C","D","E","F","G","H","I","J","K","L","M",
-  "N","O","P","Q","R","S","T","U","V","W","X","Y","Z",
-  ":", "-", ".", ",", "/", "&", "?", "!"
-];
+
+// Ordered sets for alphabetic spin behavior
+const SET_ALPHA = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+const SET_NUM   = "0123456789".split("");
+const SET_MISC  = [":","-",".",",","/","&","?","!"," "]; // keep at the end
+
+// default master order if we can't pick a subset
+const CHARSET = [...SET_ALPHA, ...SET_NUM, ...SET_MISC];
+
 const charLabel = ch => NAME_MAP[ch] ?? ch;
+
+/* pick the sequence to spin through:
+   - if both start & target are letters -> A..Z cycle
+   - if both digits -> 0..9 cycle
+   - else -> full CHARSET
+*/
+function pickSet(a, b){
+  const isAlpha = ch => /^[A-Z]$/.test(ch);
+  const isNum   = ch => /^[0-9]$/.test(ch);
+  if(isAlpha(a) && isAlpha(b)) return SET_ALPHA;
+  if(isNum(a) && isNum(b))     return SET_NUM;
+  return CHARSET;
+}
 
 const board = document.getElementById("board");
 let rows = [];
@@ -230,37 +247,41 @@ function flipOnceTo(flapEl, toCh, onDone){
   }, { once:true });
 }
 
-function spinSequence(flapEl, startCh, targetCh, flipsPerStep=32, extraTurns=1){
-  // Produce a list of intermediate characters cycling through CHARSET
-  const idx = (ch)=> CHARSET.indexOf(ch)>=0 ? CHARSET.indexOf(ch) : 0;
-  let startIdx = idx(startCh);
-  let endIdx   = idx(targetCh);
-  const totalSteps = extraTurns * CHARSET.length + ((endIdx - startIdx + CHARSET.length) % CHARSET.length || CHARSET.length);
-  // Limit the total steps to avoid huge sequences on mobile; divide into hops
-  const perHop = Math.max(1, Math.floor(CHARSET.length/4)); // hop by quarter set for speed
+// FAST alphabetical spin (step-by-step through chosen set)
+function fastAlphabeticSpin(flapEl, startCh, targetCh, extraTurns=1){
+  const set = pickSet(startCh, targetCh);
+  const L = set.length;
+  const idx = ch => {
+    const u = (ch || " ").toUpperCase();
+    const i = set.indexOf(u);
+    // if not found, coerce to nearest valid (space or 'A')
+    return i >= 0 ? i : set.indexOf(" ") >= 0 ? set.indexOf(" ") : 0;
+  };
+  let s = idx(startCh);
+  let t = idx(targetCh);
+  // forward distance (real boards typically spin forward)
+  let dist = (t - s + L) % L;
+  if (dist === 0) dist = L; // do at least one loop if same char
+  dist += extraTurns * L;
+
   let step = 0;
-  function nextHop(){
-    if(step >= totalSteps){
-      // ensure final character
-      flipOnceTo(flapEl, targetCh);
-      return;
-    }
-    step += perHop;
-    const curIdx = (startIdx + step) % CHARSET.length;
-    const ch = CHARSET[curIdx];
-    flipOnceTo(flapEl, ch, nextHop);
-  }
-  nextHop();
+  const tick = () => {
+    if (step >= dist) { flipOnceTo(flapEl, targetCh); return; }
+    const nextChar = set[(s + step + 1) % L];
+    step++;
+    flipOnceTo(flapEl, nextChar, tick);
+  };
+  tick();
 }
 
-function flipRowFullSpin(rowIndex, toText, staggerStartMs=30, extraTurnsBase=1){
+function flipRowFullSpinFast(rowIndex, toText, staggerStartMs=6, extraTurnsBase=1){
   const cols = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--cols'));
   const from = currentTexts[rowIndex].padEnd(cols, " ").slice(0, cols);
   const to   = (toText + " ".repeat(cols)).slice(0, cols);
   for(let c=0;c<cols;c++){
     const flapEl = document.getElementById(`r${rowIndex}c${c}`);
-    const extraTurns = extraTurnsBase + (c%3===0?1:0); // slight variation across columns
-    setTimeout(()=> spinSequence(flapEl, from[c], to[c], 32, extraTurns), c*staggerStartMs);
+    const extraTurns = extraTurnsBase + (c%5===0?1:0);
+    setTimeout(()=> fastAlphabeticSpin(flapEl, from[c], to[c], extraTurns), c*staggerStartMs);
   }
   currentTexts[rowIndex] = to;
 }
@@ -276,11 +297,10 @@ function cycleAll(textSets){
       buildBoard(currentTexts.map(t=>t.trim()));
     }
     for(let r=0;r<ROWS;r++){
-      // Start spins all at once, but their "landing" is naturally staggered by differing path lengths
-      flipRowFullSpin(r, nextTexts[r] || "", 15, 1);
+      flipRowFullSpinFast(r, nextTexts[r] || "", 6, 1);
     }
     i++;
-  }, 7000);
+  }, 6000);
 }
 
 function generateTextSets(base){
