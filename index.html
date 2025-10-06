@@ -13,8 +13,8 @@
   .half img { width:100%; height:100%; object-fit:contain; display:block; }
   .top { top:0;  transform-origin:bottom; transform: rotateX(0deg); }
   .bottom { bottom:0; transform-origin:top; transform: rotateX(0deg); }
-  .top img { transform: translateY(1.5%); }
-  .bottom img { transform: translateY(-1.5%); }
+.top img { transform: translateY(3%); }
+.bottom img { transform: translateY(-3%); margin-top: -1px; }
   .flip-top .top { animation: topOut 0.25s linear forwards; }
   @keyframes topOut { 0% {transform:rotateX(0)} 100% {transform:rotateX(-90deg)} }
   .flip-bottom .bottom { animation: bottomIn 0.25s linear forwards; }
