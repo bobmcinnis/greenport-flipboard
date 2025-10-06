@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Greenport Solari — Fast Alphabetical Spin</title>
+<title>Greenport Solari — Fast Spin + Robust Symbols (v2)</title>
 <style>
   :root{
     --cols: 20;
@@ -87,10 +87,10 @@
   .top img{ bottom:0; }
   .bottom img{ top:0; }
 
-  /* MUCH FASTER half flips */
-  .flip-top .top { animation: topOut .06s linear forwards; }
+  /* fast but readable flip */
+  .flip-top .top { animation: topOut .055s linear forwards; }
   @keyframes topOut { from{transform:rotateX(0)} to{transform:rotateX(-90deg)} }
-  .flip-bottom .bottom { animation: bottomIn .06s linear forwards; }
+  .flip-bottom .bottom { animation: bottomIn .055s linear forwards; }
   @keyframes bottomIn { from{transform:rotateX(90deg)} to{transform:rotateX(0)} }
 
   @media (max-width: 600px){
@@ -106,34 +106,56 @@
 /* =================== CONFIG =================== */
 const ROWS = 10;
 const ASSET_BASE = "greenport_splitflap_basic/assets";
-const NAME_MAP = {":":"colon","-":"dash",".":"period",",":"comma","/":"slash","&":"ampersand","?":"question","!":"exclamation"," ":"space"};
 
-// Ordered sets for alphabetic spin behavior
+/* Symbol map matches the generated PNGs */
+const NAME_MAP = {
+  " ": "space",
+  ":": "colon",
+  ";": "semicolon",
+  "-": "dash",
+  "–": "dash",
+  "—": "dash",
+  ".": "period",
+  ",": "comma",
+  "/": "slash",
+  "\\": "backslash",
+  "&": "ampersand",
+  "?": "question",
+  "!": "exclamation",
+  "'": "apostrophe",
+  "’": "apostrophe",
+  "\"": "quote",
+  "“": "quote",
+  "”": "quote",
+  "(": "paren_left",
+  ")": "paren_right",
+  "+": "plus",
+  "=": "equals",
+  "@": "at",
+  "#": "hash",
+  "*": "asterisk"
+};
+const charLabel = ch => NAME_MAP[ch] || (ch||" ").toUpperCase();
+
+/* Spin sets */
 const SET_ALPHA = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 const SET_NUM   = "0123456789".split("");
-const SET_MISC  = [":","-",".",",","/","&","?","!"," "]; // keep at the end
+const SET_MISC  = [" ",":",";","-",".",",","/","\\","&","?","!","'","\"","(",")","+","=","@","#","*"];
+const CHARSET   = [...SET_ALPHA, ...SET_NUM, ...SET_MISC];
 
-// default master order if we can't pick a subset
-const CHARSET = [...SET_ALPHA, ...SET_NUM, ...SET_MISC];
-
-const charLabel = ch => NAME_MAP[ch] ?? ch;
-
-/* pick the sequence to spin through:
-   - if both start & target are letters -> A..Z cycle
-   - if both digits -> 0..9 cycle
-   - else -> full CHARSET
-*/
 function pickSet(a, b){
   const isAlpha = ch => /^[A-Z]$/.test(ch);
   const isNum   = ch => /^[0-9]$/.test(ch);
-  if(isAlpha(a) && isAlpha(b)) return SET_ALPHA;
-  if(isNum(a) && isNum(b))     return SET_NUM;
+  const A = (a||" ").toUpperCase(), B = (b||" ").toUpperCase();
+  if(isAlpha(A) && isAlpha(B)) return SET_ALPHA;
+  if(isNum(A) && isNum(B))     return SET_NUM;
   return CHARSET;
 }
 
 const board = document.getElementById("board");
 let rows = [];
 let currentTexts = [];
+let spinning = false; // debounce cycle starts
 
 async function loadPhrases(){
   try{
@@ -153,10 +175,10 @@ async function loadPhrases(){
       "WELCOME TO GREENPORT",
       "GREENPORT EXPRESS",
       "THANKS TO CLAUDIO'S",
-      "ALDO'S COFFEE",
+      "ALDO'S COFFEE & TEA",
       "SATNICK JEWELERS",
       "NEXT DEPARTURE 01:00 PM",
-      "PLATFORM  1",
+      "PLATFORM (1)",
       "HAVE A GREAT TRIP"
     ];
     return seed.map(s=>s.toUpperCase());
@@ -178,15 +200,26 @@ function setScaleForCols(cols){
   document.documentElement.style.setProperty('--tile-h', tileH + "px");
 }
 
+function preload(chars){
+  const uniq = Array.from(new Set(chars));
+  uniq.forEach(ch=>{
+    const lbl = charLabel(ch);
+    ["top","bottom"].forEach(side=>{
+      const img = new Image();
+      img.src = `${ASSET_BASE}/${side}/${lbl}.png`;
+    });
+  });
+}
+
 function makeFlapHTML(ch){
   const label = charLabel(ch);
   return `<div class="half top">
-            <img class="current" src="${ASSET_BASE}/top/${label}.png" alt="">
-            <img class="next"    src="${ASSET_BASE}/top/${label}.png" style="display:none" alt="">
+            <img class="current" src="${ASSET_BASE}/top/${label}.png" alt="" onerror="this.onerror=null; this.src='${ASSET_BASE}/top/space.png'">
+            <img class="next"    src="${ASSET_BASE}/top/${label}.png" style="display:none" alt="" onerror="this.onerror=null; this.src='${ASSET_BASE}/top/space.png'">
           </div>
           <div class="half bottom">
-            <img class="current" src="${ASSET_BASE}/bottom/${label}.png" alt="">
-            <img class="next"    src="${ASSET_BASE}/bottom/${label}.png" style="display:none" alt="">
+            <img class="current" src="${ASSET_BASE}/bottom/${label}.png" alt="" onerror="this.onerror=null; this.src='${ASSET_BASE}/bottom/space.png'">
+            <img class="next"    src="${ASSET_BASE}/bottom/${label}.png" style="display:none" alt="" onerror="this.onerror=null; this.src='${ASSET_BASE}/bottom/space.png'">
           </div>`;
 }
 
@@ -218,11 +251,18 @@ function buildBoard(texts){
     rows.push(rowEl);
     currentTexts.push(text.padEnd(cols, " ").slice(0, cols));
   }
+  // Preload common glyphs to avoid blanks
+  preload("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 :;-.,/\\&?!'\"()+=@#*");
 }
 
 function flipOnceTo(flapEl, toCh, onDone){
+  // Cancel any lingering animations and ensure halves are reset before starting
+  flapEl.classList.remove("flip-top","flip-bottom");
   const topHalf = flapEl.querySelector(".top");
   const bottomHalf = flapEl.querySelector(".bottom");
+  topHalf.style.transform = "rotateX(0deg)";
+  bottomHalf.style.transform = "rotateX(0deg)";
+
   const tCur = topHalf.querySelector("img.current");
   const tNext = topHalf.querySelector("img.next");
   const bCur = bottomHalf.querySelector("img.current");
@@ -230,6 +270,15 @@ function flipOnceTo(flapEl, toCh, onDone){
   const label = charLabel(toCh);
   tNext.src = `${ASSET_BASE}/top/${label}.png`;
   bNext.src = `${ASSET_BASE}/bottom/${label}.png`;
+
+  // Safety timeout to prevent "stuck half" if animationend doesn't fire
+  let safety = setTimeout(()=>{
+    flapEl.classList.remove("flip-top","flip-bottom");
+    topHalf.style.transform = "rotateX(0deg)";
+    bottomHalf.style.transform = "rotateX(0deg)";
+    tCur.src = tNext.src; bCur.src = bNext.src;
+    onDone && onDone();
+  }, 400);
 
   flapEl.classList.add("flip-top");
   topHalf.addEventListener("animationend", function onTop(){
@@ -242,26 +291,25 @@ function flipOnceTo(flapEl, toCh, onDone){
       bottomHalf.removeEventListener("animationend", onBottom);
       flapEl.classList.remove("flip-bottom");
       bottomHalf.style.transform = "";
+      clearTimeout(safety);
       onDone && onDone();
     }, { once:true });
   }, { once:true });
 }
 
-// FAST alphabetical spin (step-by-step through chosen set)
-function fastAlphabeticSpin(flapEl, startCh, targetCh, extraTurns=1){
+// FAST alphabetical (or numeric) spin with jittered cadence
+function fastAlphabeticSpin(flapEl, startCh, targetCh, extraTurns=1, jitterMs=0){
   const set = pickSet(startCh, targetCh);
   const L = set.length;
   const idx = ch => {
     const u = (ch || " ").toUpperCase();
     const i = set.indexOf(u);
-    // if not found, coerce to nearest valid (space or 'A')
-    return i >= 0 ? i : set.indexOf(" ") >= 0 ? set.indexOf(" ") : 0;
+    return i >= 0 ? i : set.indexOf(" ");
   };
   let s = idx(startCh);
   let t = idx(targetCh);
-  // forward distance (real boards typically spin forward)
   let dist = (t - s + L) % L;
-  if (dist === 0) dist = L; // do at least one loop if same char
+  if (dist === 0) dist = L;
   dist += extraTurns * L;
 
   let step = 0;
@@ -269,38 +317,45 @@ function fastAlphabeticSpin(flapEl, startCh, targetCh, extraTurns=1){
     if (step >= dist) { flipOnceTo(flapEl, targetCh); return; }
     const nextChar = set[(s + step + 1) % L];
     step++;
-    flipOnceTo(flapEl, nextChar, tick);
+    setTimeout(()=> flipOnceTo(flapEl, nextChar, tick), jitterMs ? Math.random()*jitterMs : 0);
   };
   tick();
 }
 
-function flipRowFullSpinFast(rowIndex, toText, staggerStartMs=6, extraTurnsBase=1){
+// Debounced, jittered row spin to avoid visible "wave" artifacts
+function flipRowFullSpinFast(rowIndex, toText, baseStaggerMs=5, extraTurnsBase=1){
   const cols = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--cols'));
   const from = currentTexts[rowIndex].padEnd(cols, " ").slice(0, cols);
   const to   = (toText + " ".repeat(cols)).slice(0, cols);
   for(let c=0;c<cols;c++){
     const flapEl = document.getElementById(`r${rowIndex}c${c}`);
-    const extraTurns = extraTurnsBase + (c%5===0?1:0);
-    setTimeout(()=> fastAlphabeticSpin(flapEl, from[c], to[c], extraTurns), c*staggerStartMs);
+    const jitterStart = baseStaggerMs + Math.floor(Math.random()*4);  // 5..8ms
+    const extraTurns = extraTurnsBase + (c%7===0?1:0) + (Math.random()<0.2?1:0);
+    setTimeout(()=> fastAlphabeticSpin(flapEl, from[c], to[c], extraTurns, 8), c*jitterStart);
   }
   currentTexts[rowIndex] = to;
 }
 
 function cycleAll(textSets){
+  if (spinning) return;
+  spinning = true;
   let i = 1;
-  setInterval(()=>{
+  const run = ()=>{
     const nextTexts = textSets[i % textSets.length];
-    const newCols = computeCols(nextTexts);
+    const newCols = nextTexts.reduce((m,t)=> Math.max(m, t.length), 1);
     const curCols = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--cols'));
     if(newCols !== curCols){
       setScaleForCols(newCols);
       buildBoard(currentTexts.map(t=>t.trim()));
     }
     for(let r=0;r<ROWS;r++){
-      flipRowFullSpinFast(r, nextTexts[r] || "", 6, 1);
+      flipRowFullSpinFast(r, nextTexts[r] || "", 5, 1);
     }
     i++;
-  }, 6000);
+    // Allow next cycle after a safe window (depends on extraTurns and durations)
+    setTimeout(run, 5200); // ~5.2s cycle; adjust if you tweak durations
+  };
+  run();
 }
 
 function generateTextSets(base){
