@@ -16,17 +16,19 @@
   .top { top:0; transform-origin:bottom; transform:rotateX(0deg); }
   .bottom { bottom:0; transform-origin:top; transform:rotateX(0deg); }
 
-  /* Tightened hinge gap and shadow line */
-  .top img { transform: translateY(3%); }
-  .bottom img { transform: translateY(-3%); margin-top:-1px; }
+  /* Reduced hinge gap by 80% and fixed pixel alignment */
+  .top img { transform: translateY(0.6%); margin-bottom:-1px; }
+  .bottom img { transform: translateY(-0.6%); margin-top:-1px; }
+
+  /* Thinner hinge shadow for realism */
   .flap::after {
     content:"";
     position:absolute;
     top:50%;
     left:0;
     width:100%;
-    height:2px;
-    background:rgba(0,0,0,0.5);
+    height:1px;
+    background:rgba(0,0,0,0.4);
     transform:translateY(-50%);
     z-index:2;
   }
@@ -49,6 +51,7 @@
   <div class="sponsors" id="sponsorBoard"></div>
   <button id="muteBtn" aria-label="Toggle sound">🔊</button>
   <audio id="tick" src="tick.m4a" preload="auto"></audio>
+
 <script>
 const ASSET_BASE="greenport_splitflap_basic/assets";
 const NAME_MAP={":":"colon","-":"dash",".":"period",",":"comma","/":"slash","&":"ampersand","?":"question","!":"exclamation"," ":"space"};
