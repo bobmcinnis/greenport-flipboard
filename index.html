@@ -4,20 +4,91 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Greenport Solari</title>
-  <link rel="stylesheet" href="styles.css" />
+  <style>
+    body {
+      background-color: #111;
+      color: #fff;
+      text-align: center;
+      font-family: Arial, sans-serif;
+    }
+    h1 {
+      margin-top: 40px;
+    }
+    #flipboard {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 40px;
+    }
+    .flap {
+      position: relative;
+      width: 60px;
+      height: 90px;
+      margin: 2px;
+      perspective: 400px;
+      display: inline-block;
+    }
+    .top, .bottom {
+      position: absolute;
+      width: 100%;
+      height: 50%;
+      overflow: hidden;
+      background: #333;
+      border-radius: 4px;
+      border: 1px solid #000;
+    }
+    .top {
+      top: 0;
+      border-bottom: 2px solid #111;
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
+      padding-bottom: 5px;
+    }
+    .bottom {
+      bottom: 0;
+      border-top: 2px solid #111;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding-top: 5px;
+    }
+    .flap span {
+      font-size: 50px;
+      color: #fff;
+      font-weight: bold;
+    }
+  </style>
 </head>
 <body>
   <h1>Greenport Solari</h1>
-  <div id="flipboard" class="split-flap-board">
-    <div class="split-flap">
-      <div class="split-flap-top">G</div>
-      <div class="split-flap-bottom">G</div>
-    </div>
-    <div class="split-flap">
-      <div class="split-flap-top">R</div>
-      <div class="split-flap-bottom">R</div>
-    </div>
-  </div>
-  <script src="script.js"></script>
+  <div id="flipboard"></div>
+  <script>
+    const words = ['WELCOME TO GREENPORT', 'DEPARTURES TODAY', 'THANKS TO NORTH FORK BANK'];
+    let wordIndex = 0;
+    const flipboard = document.getElementById('flipboard');
+
+    function createFlaps(text) {
+      flipboard.innerHTML = '';
+      for (let char of text) {
+        const flap = document.createElement('div');
+        flap.className = 'flap';
+        flap.innerHTML = `
+          <div class='top'><span>${char === ' ' ? '&nbsp;' : char}</span></div>
+          <div class='bottom'><span>${char === ' ' ? '&nbsp;' : char}</span></div>
+        `;
+        flipboard.appendChild(flap);
+      }
+    }
+
+    function updateFlaps() {
+      wordIndex = (wordIndex + 1) % words.length;
+      const newText = words[wordIndex];
+      createFlaps(newText);
+    }
+
+    createFlaps(words[0]);
+    setInterval(updateFlaps, 4000);
+  </script>
 </body>
 </html>
