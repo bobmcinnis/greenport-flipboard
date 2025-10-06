@@ -10,29 +10,25 @@
   .board, .sponsors, .timetableRow { display:flex; justify-content:center; margin:20px auto; flex-wrap:nowrap; width:100%; max-width:95vw; }
   .flap { position:relative; flex:1; margin:1px; aspect-ratio: 2/3; perspective:600px; }
 
-  .half { position:absolute; width:100%; height:50%; left:0; overflow:hidden; backface-visibility:hidden; }
-  .half img { width:100%; height:100%; object-fit:contain; display:block; }
-
+  /* Halves */
+  .half { position:absolute; left:0; width:100%; height:50%; overflow:hidden; backface-visibility:hidden; }
   .top { top:0; transform-origin:bottom; transform:rotateX(0deg); }
   .bottom { bottom:0; transform-origin:top; transform:rotateX(0deg); }
 
-  /* Reduced hinge gap by 80% and fixed pixel alignment */
-  .top img { transform: translateY(0.6%); margin-bottom:-1px; }
-  .bottom img { transform: translateY(-0.6%); margin-top:-1px; }
+  /* NEW: Overlap halves using container heights instead of translating images. 
+     This removes the hinge gap even when the page scales. */
+  .top { height: calc(50% + 3px); }
+  .bottom { height: calc(50% + 3px); }
 
-  /* Thinner hinge shadow for realism */
-  .flap::after {
-    content:"";
-    position:absolute;
-    top:50%;
-    left:0;
-    width:100%;
-    height:1px;
-    background:rgba(0,0,0,0.4);
-    transform:translateY(-50%);
-    z-index:2;
-  }
+  /* Pin images to the seam so there is no gap regardless of scaling */
+  .half img { position:absolute; width:100%; height:100%; object-fit:cover; display:block; }
+  .top img { bottom:0; }
+  .bottom img { top:0; }
 
+  /* If your PNG assets already include a hinge line, DO NOT add any extra shadow lines.
+     (We removed the .flap::after rule to avoid a thick duplicate line.) */
+
+  /* Flip animations (two-phase) */
   .flip-top .top { animation: topOut 0.25s linear forwards; }
   @keyframes topOut { 0% {transform:rotateX(0)} 100% {transform:rotateX(-90deg)} }
   .flip-bottom .bottom { animation: bottomIn 0.25s linear forwards; }
@@ -64,15 +60,15 @@ function buildFlapHTML(ch){const label=labelFor(ch);return`
 <div class="half top"><img class="current" src="${ASSET_BASE}/top/${label}.png"><img class="next" src="${ASSET_BASE}/top/${label}.png" style="display:none;"></div>
 <div class="half bottom"><img class="current" src="${ASSET_BASE}/bottom/${label}.png"><img class="next" src="${ASSET_BASE}/bottom/${label}.png" style="display:none;"></div>`}
 
-function buildBoardExact(word,board,idPrefix="row"){board.innerHTML="";for(let i=0;i<word.length;i++){const ch=word[i],flap=document.createElement("div");flap.className="flap";flap.id=`${idPrefix}Flap${i}`;flap.innerHTML=buildFlapHTML(ch);board.appendChild(flap)}}
+function buildBoardExact(word,board,idPrefix="row"){board.innerHTML="";for(let i=0;i<word.length;i++){const ch=word[i],flap=document.createElement("div");flap.className="flap";flap.id=\`\${idPrefix}Flap\${i}\`;flap.innerHTML=buildFlapHTML(ch);board.appendChild(flap)}}
 
 function flipTile(flap,fromCh,toCh,playTick){if(fromCh===toCh)return;const topHalf=flap.querySelector(".top"),bottomHalf=flap.querySelector(".bottom"),topCur=topHalf.querySelector("img.current"),topNext=topHalf.querySelector("img.next"),botCur=bottomHalf.querySelector("img.current"),botNext=bottomHalf.querySelector("img.next"),toLabel=labelFor(toCh);
-topNext.src=`${ASSET_BASE}/top/${toLabel}.png`;botNext.src=`${ASSET_BASE}/bottom/${toLabel}.png`;flap.classList.add("flip-top");if(playTick){try{tickSound.currentTime=0;tickSound.play()}catch(e){}}
+topNext.src=\`\${ASSET_BASE}/top/\${toLabel}.png\`;botNext.src=\`\${ASSET_BASE}/bottom/\${toLabel}.png\`;flap.classList.add("flip-top");if(playTick){try{tickSound.currentTime=0;tickSound.play()}catch(e){}}
 topHalf.addEventListener("animationend",function onTopEnd(){topHalf.removeEventListener("animationend",onTopEnd);flap.classList.remove("flip-top");topCur.src=topNext.src;botCur.src=botNext.src;bottomHalf.style.transform="rotateX(90deg)";flap.classList.add("flip-bottom");if(playTick){try{tickSound.currentTime=0;tickSound.play()}catch(e){}}
 bottomHalf.addEventListener("animationend",function onBottomEnd(){bottomHalf.removeEventListener("animationend",onBottomEnd);flap.classList.remove("flip-bottom");bottomHalf.style.transform=""},{once:true})},{once:true})}
 
 function flipRowTo(board,currentText,targetText,idPrefix="row",staggerMs=100,playTick=true){const len=Math.max(currentText.length,targetText.length),cur=(currentText+" ".repeat(len)).slice(0,len),next=(targetText+" ".repeat(len)).slice(0,len);
-if(board.children.length!==len)buildBoardExact(cur,board,idPrefix);for(let i=0;i<len;i++){const flap=document.getElementById(`${idPrefix}Flap${i}`),fromCh=cur[i],toCh=next[i];setTimeout(()=>flipTile(flap,fromCh,toCh,playTick),i*staggerMs)}}
+if(board.children.length!==len)buildBoardExact(cur,board,idPrefix);for(let i=0;i<len;i++){const flap=document.getElementById(\`\${idPrefix}Flap\${i}\`),fromCh=cur[i],toCh=next[i];setTimeout(()=>flipTile(flap,fromCh,toCh,playTick),i*staggerMs)}}
 
 async function loadPhrases(){const res=await fetch("phrases.json");phrases=await res.json();phrases.departures=phrases.departures.map(d=>new Date(d));currentMain=phrases.main[0]||"";buildBoardExact(currentMain,mainBoard,"main");currentSponsor=phrases.sponsors[0]||"";buildBoardExact(currentSponsor,sponsorBoard,"sponsor");updateNextDepartureIndex();renderOrFlipTimetable(true);setInterval(cycleMain,5000);setInterval(cycleSponsors,4000);setInterval(tickCountdownAndTimetable,1000)}
 
@@ -81,8 +77,8 @@ function cycleSponsors(){const nextSponsor=phrases.sponsors[sponsorIndex];flipRo
 function updateNextDepartureIndex(){const now=new Date();currentDepartureIndex=phrases.departures.findIndex(d=>d>now);if(currentDepartureIndex===-1){countdownEl.textContent="No more departures today"}}
 function formatTime(d){return d.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}
 function renderOrFlipTimetable(initial=false){if(currentDepartureIndex===-1){timetableEl.innerHTML="";return}const upcoming=phrases.departures.slice(currentDepartureIndex,currentDepartureIndex+3),newTimes=upcoming.map(formatTime);
-if(initial||JSON.stringify(newTimes)!==JSON.stringify(previousTimetableStrs)){if(initial||timetableEl.children.length!==newTimes.length){timetableEl.innerHTML="";newTimes.forEach((s,i)=>{const row=document.createElement("div");row.className="timetableRow";row.id=`row${i}`;timetableEl.appendChild(row);buildBoardExact(s,row,`row${i}`)})}else{newTimes.forEach((s,i)=>{const row=document.getElementById(`row${i}`),oldStr=previousTimetableStrs[i]||"";flipRowTo(row,oldStr,s,`row${i}`,80,soundEnabled)})}previousTimetableStrs=[...newTimes]}}
-function tickCountdownAndTimetable(){if(currentDepartureIndex===-1)return;const now=new Date(),target=phrases.departures[currentDepartureIndex];let diff=target-now;if(diff<=0){currentDepartureIndex++;if(currentDepartureIndex>=phrases.departures.length){countdownEl.textContent="No more departures today";timetableEl.innerHTML="";return}renderOrFlipTimetable(false);diff=phrases.departures[currentDepartureIndex]-new Date()}const mins=Math.floor(diff/60000),secs=Math.floor((diff%60000)/1000);countdownEl.textContent=`Next Departure in ${mins} min ${secs} sec`}
+if(initial||JSON.stringify(newTimes)!==JSON.stringify(previousTimetableStrs)){if(initial||timetableEl.children.length!==newTimes.length){timetableEl.innerHTML="";newTimes.forEach((s,i)=>{const row=document.createElement("div");row.className="timetableRow";row.id=\`row\${i}\`;timetableEl.appendChild(row);buildBoardExact(s,row,\`row\${i}\`)})}else{newTimes.forEach((s,i)=>{const row=document.getElementById(\`row\${i}\`),oldStr=previousTimetableStrs[i]||"";flipRowTo(row,oldStr,s,\`row\${i}\`,80,soundEnabled)})}previousTimetableStrs=[...newTimes]}}
+function tickCountdownAndTimetable(){if(currentDepartureIndex===-1)return;const now=new Date(),target=phrases.departures[currentDepartureIndex];let diff=target-now;if(diff<=0){currentDepartureIndex++;if(currentDepartureIndex>=phrases.departures.length){countdownEl.textContent="No more departures today";timetableEl.innerHTML="";return}renderOrFlipTimetable(false);diff=phrases.departures[currentDepartureIndex]-new Date()}const mins=Math.floor(diff/60000),secs=Math.floor((diff%60000)/1000);countdownEl.textContent=\`Next Departure in \${mins} min \${secs} sec\`}
 loadPhrases();
 </script>
 </body>
