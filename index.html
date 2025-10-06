@@ -2,62 +2,160 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Greenport Solari</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Greenport Solari — 10 Rows, Scaled, Hairline Seam</title>
 <style>
   :root{
-    --seam-overlap: 2px;
-    --tile-w: 52px;
-    --tile-h: 72px;
+    --cols: 20;
+    --tile-w: 56px;
+    --tile-h: 78px;
+    --gap: 8px;
+    --seam: 1px;
   }
-  body { background:#111; color:#eee; font-family:Arial, Helvetica, sans-serif; text-align:center; margin:0; padding:20px; }
-  h1, h2 { margin: 14px 0; }
-  .row { display:flex; justify-content:center; gap:8px; margin:18px auto; flex-wrap:nowrap; }
-  .flap { position:relative; width:var(--tile-w); height:var(--tile-h); perspective:700px; border-radius:4px; overflow:hidden; flex:0 0 auto; }
-  @media (min-width:900px){ :root{ --tile-w:64px; --tile-h:88px; } }
-  @media (max-width:520px){ :root{ --tile-w:40px; --tile-h:56px; } }
-  .half { position:absolute; left:0; width:100%; height: calc(50% + var(--seam-overlap)); overflow:hidden; backface-visibility:hidden; }
-  .top { top:0; transform-origin:bottom; transform:rotateX(0deg); }
-  .bottom { bottom:0; transform-origin:top; transform:rotateX(0deg); }
-  .half img { position:absolute; width:100%; height:100%; object-fit:cover; display:block; }
-  .top img { bottom:0; }
-  .bottom img { top:0; }
+  * { box-sizing: border-box; }
+  body{
+    margin:0; padding:24px 12px 60px;
+    background:#111; color:#eee;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    text-align:center;
+  }
+  h1{ margin: 6px 0 18px; font-weight: 800; }
+
+  .board{
+    margin: 0 auto;
+    width: min(98vw, 1600px);
+    display: grid;
+    grid-template-columns: repeat(var(--cols), var(--tile-w));
+    grid-auto-rows: var(--tile-h);
+    gap: var(--gap);
+    justify-content: center;
+  }
+  .row{
+    display: grid;
+    grid-template-columns: inherit;
+    grid-column: 1 / -1;
+    gap: var(--gap);
+    justify-content: center;
+  }
+  .flap{
+    position: relative;
+    width: var(--tile-w);
+    height: var(--tile-h);
+    perspective: 900px;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #2d2d2d;
+  }
+  .flap::after{
+    content:"";
+    position:absolute;
+    left:0; top:50%;
+    width:100%;
+    height: var(--seam);
+    background: #0b0b0b;
+    transform: translateY(calc(-1 * var(--seam) / 2));
+    z-index: 4;
+  }
+  .half{
+    position:absolute;
+    left:0;
+    width:100%;
+    overflow:hidden;
+    backface-visibility: hidden;
+  }
+  .top{
+    top:0;
+    height: calc(50% - var(--seam)/2);
+    transform-origin: bottom;
+    background: linear-gradient(#3c3c3f,#2c2c2f);
+    z-index: 2;
+  }
+  .bottom{
+    bottom:0;
+    height: calc(50% - var(--seam)/2);
+    transform-origin: top;
+    background: linear-gradient(#222,#313133);
+    z-index: 1;
+  }
+  .half img{
+    position:absolute;
+    width:100%;
+    height:100%;
+    object-fit: cover;
+    display:block;
+  }
+  .top img{ bottom:0; }
+  .bottom img{ top:0; }
+
   .flip-top .top { animation: topOut .22s linear forwards; }
   @keyframes topOut { from{transform:rotateX(0)} to{transform:rotateX(-90deg)} }
   .flip-bottom .bottom { animation: bottomIn .22s linear forwards; }
   @keyframes bottomIn { from{transform:rotateX(90deg)} to{transform:rotateX(0)} }
-  #countdown{ margin:6px 0 8px; color:#ffeb3b; }
-  #muteBtn { position:fixed; top:12px; right:12px; background:#444; color:#fff; border:none; border-radius:50%; width:40px; height:40px; cursor:pointer; font-size:18px; z-index:999; }
-  #status{ color:#ffec80; font-size:.95rem; opacity:.9; }
+
+  @media (max-width: 600px){
+    :root{ --gap: 6px; }
+  }
 </style>
 </head>
 <body>
   <h1>Greenport Solari</h1>
-  <div id="mainRow" class="row"></div>
-  <div id="countdown">Next Departure in -- min -- sec</div>
-  <div id="timeRows"></div>
-  <h2>Sponsors</h2>
-  <div id="sponsorRow" class="row"></div>
-  <p id="status"></p>
-  <button id="muteBtn" aria-label="Toggle sound">🔊</button>
-  <audio id="tick" src="tick.m4a" preload="auto"></audio>
+  <div id="board" class="board"></div>
+
 <script>
-const ASSET_BASE="greenport_splitflap_basic/assets";
-const NAME_MAP={":":"colon","-":"dash",".":"period",",":"comma","/":"slash","&":"ampersand","?":"question","!":"exclamation"," ":"space"};
-const labelFor = ch => NAME_MAP[ch] ?? ch;
-const $ = sel => document.querySelector(sel);
-const mainRow = $("#mainRow");
-const sponsorRow = $("#sponsorRow");
-const timeRows = $("#timeRows");
-const countdownEl = $("#countdown");
-const statusEl = $("#status");
-const tick = $("#tick");
-const muteBtn = $("#muteBtn");
-let sound = true; muteBtn.onclick = ()=>{ sound=!sound; muteBtn.textContent = sound? "🔊":"🔇"; };
-let phrases = { main:[], sponsors:[], departures:[] };
-let mainIdx=0, sponsorIdx=0, currMain="", currSponsor="", nextDepIdx=0, prevTimeStrs=[];
-function flapHTML(ch){
-  const label = labelFor(ch);
+const ROWS = 10;
+const ASSET_BASE = "greenport_splitflap_basic/assets";
+const NAME_MAP = {":":"colon","-":"dash",".":"period",",":"comma","/":"slash","&":"ampersand","?":"question","!":"exclamation"," ":"space"};
+const charLabel = ch => NAME_MAP[ch] ?? ch;
+
+const board = document.getElementById("board");
+let rows = [];
+let currentTexts = [];
+
+async function loadPhrases(){
+  try{
+    const r = await fetch("phrases.json",{cache:"no-store"});
+    if(!r.ok) throw new Error("no phrases.json");
+    const json = await r.json();
+    const lines = (json.main || ["DEPARTURES TODAY"]).slice(0, ROWS);
+    while(lines.length < ROWS){
+      const s = (json.sponsors && json.sponsors[(lines.length) % json.sponsors.length]) || "";
+      lines.push(s || "");
+    }
+    return lines;
+  }catch(e){
+    const seed = [
+      "DEPARTURES TODAY",
+      "NOW BOARDING  TRACK 1",
+      "WELCOME TO GREENPORT",
+      "GREENPORT EXPRESS",
+      "THANKS TO CLAUDIO'S",
+      "ALDO'S COFFEE",
+      "SATNICK JEWELERS",
+      "NEXT DEPARTURE 01:00 PM",
+      "PLATFORM  1",
+      "HAVE A GREAT TRIP"
+    ];
+    return seed;
+  }
+}
+
+function computeCols(texts){
+  return texts.reduce((m,t)=> Math.max(m, t.length), 1);
+}
+
+function setScaleForCols(cols){
+  const style = getComputedStyle(document.documentElement);
+  const gap = parseFloat(style.getPropertyValue('--gap')) || 8;
+  const boardWidth = Math.min(window.innerWidth*0.98, 1600);
+  const tileW = Math.max(24, Math.floor((boardWidth - (cols-1)*gap) / cols));
+  const tileH = Math.floor(tileW * 1.35);
+  document.documentElement.style.setProperty('--cols', cols);
+  document.documentElement.style.setProperty('--tile-w', tileW + "px");
+  document.documentElement.style.setProperty('--tile-h', tileH + "px");
+}
+
+function makeFlapHTML(ch){
+  const label = charLabel(ch);
   return `<div class="half top">
             <img class="current" src="${ASSET_BASE}/top/${label}.png" alt="">
             <img class="next"    src="${ASSET_BASE}/top/${label}.png" style="display:none" alt="">
@@ -67,36 +165,56 @@ function flapHTML(ch){
             <img class="next"    src="${ASSET_BASE}/bottom/${label}.png" style="display:none" alt="">
           </div>`;
 }
-function buildRow(text, rowEl, idPrefix){
-  rowEl.innerHTML = "";
-  for(let i=0;i<text.length;i++){
+
+function buildRowDOM(text, rowIndex){
+  const row = document.createElement("div");
+  row.className = "row";
+  const cols = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--cols')) || text.length;
+  const padded = (text + " ".repeat(cols)).slice(0, cols);
+  for(let i=0;i<cols;i++){
     const d = document.createElement("div");
-    d.className="flap";
-    d.id = `${idPrefix}-${i}`;
-    d.innerHTML = flapHTML(text[i]);
-    rowEl.appendChild(d);
+    d.className = "flap";
+    d.id = `r${rowIndex}c${i}`;
+    d.innerHTML = makeFlapHTML(padded[i]);
+    row.appendChild(d);
+  }
+  return row;
+}
+
+function buildBoard(texts){
+  board.innerHTML = "";
+  rows = [];
+  currentTexts = [];
+  const cols = computeCols(texts);
+  setScaleForCols(cols);
+  for(let r=0;r<ROWS;r++){
+    const text = (texts[r] || "");
+    const rowEl = buildRowDOM(text, r);
+    board.appendChild(rowEl);
+    rows.push(rowEl);
+    currentTexts.push(text.padEnd(cols, " ").slice(0, cols));
   }
 }
+
 function flipOne(flapEl, fromCh, toCh){
-  if(fromCh===toCh) return;
+  if(fromCh === toCh) return;
   const topHalf = flapEl.querySelector(".top");
   const bottomHalf = flapEl.querySelector(".bottom");
   const tCur = topHalf.querySelector("img.current");
   const tNext = topHalf.querySelector("img.next");
   const bCur = bottomHalf.querySelector("img.current");
   const bNext = bottomHalf.querySelector("img.next");
-  const label = labelFor(toCh);
+  const label = charLabel(toCh);
   tNext.src = `${ASSET_BASE}/top/${label}.png`;
   bNext.src = `${ASSET_BASE}/bottom/${label}.png`;
+
   flapEl.classList.add("flip-top");
-  if(sound){ try{ tick.currentTime=0; tick.play(); }catch(e){} }
   topHalf.addEventListener("animationend", function onTop(){
     topHalf.removeEventListener("animationend", onTop);
     flapEl.classList.remove("flip-top");
     tCur.src = tNext.src; bCur.src = bNext.src;
     bottomHalf.style.transform = "rotateX(90deg)";
     flapEl.classList.add("flip-bottom");
-    if(sound){ try{ tick.currentTime=0; tick.play(); }catch(e){} }
     bottomHalf.addEventListener("animationend", function onBottom(){
       bottomHalf.removeEventListener("animationend", onBottom);
       flapEl.classList.remove("flip-bottom");
@@ -104,107 +222,64 @@ function flipOne(flapEl, fromCh, toCh){
     }, { once:true });
   }, { once:true });
 }
-function flipRow(rowEl, fromText, toText, idPrefix, stagger=90){
-  const len = Math.max(fromText.length, toText.length);
-  const cur = (fromText + " ".repeat(len)).slice(0,len);
-  const next = (toText + " ".repeat(len)).slice(0,len);
-  if(rowEl.children.length !== len) buildRow(cur, rowEl, idPrefix);
-  for(let i=0;i<len;i++){
-    const flapEl = document.getElementById(`${idPrefix}-${i}`);
-    setTimeout(()=>flipOne(flapEl, cur[i], next[i]), i*stagger);
+
+function flipRow(rowIndex, toText, staggerStopMs=80){
+  const rowEl = rows[rowIndex];
+  const cols = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--cols'));
+  const from = currentTexts[rowIndex].padEnd(cols, " ").slice(0, cols);
+  const to = (toText + " ".repeat(cols)).slice(0, cols);
+
+  for(let c=0;c<cols;c++){
+    const flapEl = document.getElementById(`r${rowIndex}c${c}`);
+    setTimeout(()=> flipOne(flapEl, from[c], to[c]), c*staggerStopMs);
   }
+  currentTexts[rowIndex] = to;
 }
-function fmtTime(d){ return d.toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"}); }
-function updateNextDepIdx(){
-  const now = new Date();
-  nextDepIdx = phrases.departures.findIndex(d => d>now);
-  if(nextDepIdx===-1) countdownEl.textContent="No more departures today";
-}
-function renderTimes(initial=false){
-  if(nextDepIdx===-1){ timeRows.innerHTML=""; return; }
-  const upcoming = phrases.departures.slice(nextDepIdx, nextDepIdx+3);
-  const newStrs = upcoming.map(fmtTime);
-  if(initial || JSON.stringify(newStrs)!==JSON.stringify(prevTimeStrs)){
-    if(initial || timeRows.children.length!==newStrs.length){
-      timeRows.innerHTML="";
-      newStrs.forEach((s,i)=>{
-        const r = document.createElement("div");
-        r.className="row";
-        r.id=`time-${i}`;
-        timeRows.appendChild(r);
-        buildRow(s, r, `time-${i}`);
-      });
-    }else{
-      newStrs.forEach((s,i)=>{
-        const r = document.getElementById(`time-${i}`);
-        flipRow(r, prevTimeStrs[i]||"", s, `time-${i}`, 70);
-      });
+
+function cycleAll(textSets){
+  let i = 1;
+  setInterval(()=>{
+    const nextTexts = textSets[i % textSets.length];
+    const newCols = computeCols(nextTexts);
+    const curCols = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--cols'));
+    if(newCols !== curCols){
+      setScaleForCols(newCols);
+      buildBoard(currentTexts.map((t,idx)=> t.trim()));
     }
-    prevTimeStrs = [...newStrs];
+    for(let r=0;r<ROWS;r++){
+      flipRow(r, nextTexts[r] || "");
+    }
+    i++;
+  }, 5000);
+}
+
+function generateTextSets(base){
+  const sets = [];
+  for(let k=0;k<5;k++){
+    const s = [];
+    for(let r=0;r<ROWS;r++){
+      const t = base[(r+k)%base.length] || "";
+      s.push(t);
+    }
+    sets.push(s);
   }
+  return sets;
 }
-function tickTimers(){
-  if(nextDepIdx===-1) return;
-  const now = new Date();
-  const t = phrases.departures[nextDepIdx];
-  let diff = t-now;
-  if(diff<=0){
-    nextDepIdx++;
-    if(nextDepIdx>=phrases.departures.length){ countdownEl.textContent="No more departures today"; timeRows.innerHTML=""; return; }
-    renderTimes(false);
-    diff = phrases.departures[nextDepIdx]-new Date();
-  }
-  const m = Math.floor(diff/60000), s = Math.floor((diff%60000)/1000);
-  countdownEl.textContent = `Next Departure in ${m} min ${s} sec`;
-}
-function cycleMain(){
-  const next = phrases.main[mainIdx];
-  flipRow(mainRow, currMain, next, "main", 80);
-  currMain = next; mainIdx = (mainIdx+1) % phrases.main.length;
-}
-function cycleSponsor(){
-  const next = phrases.sponsors[sponsorIdx];
-  flipRow(sponsorRow, currSponsor, next, "sponsor", 70);
-  currSponsor = next; sponsorIdx = (sponsorIdx+1) % phrases.sponsors.length;
-}
-function loadFallback(){
-  phrases = {
-    main: ["WELCOME TO GREENPORT", "GREENPORT EXPRESS", "DEPARTURES TODAY"],
-    sponsors: ["THANKS TO CLAUDIO'S", "SUPPORTED BY SATNICK JEWELERS", "ALDO'S COFFEE"],
-    departures: [new Date(Date.now()+5*60000), new Date(Date.now()+45*60000), new Date(Date.now()+90*60000)]
-  };
-  statusEl.textContent = "Fallback data loaded (phrases.json missing).";
-  currMain = phrases.main[0]; buildRow(currMain, mainRow, "main");
-  currSponsor = phrases.sponsors[0]; buildRow(currSponsor, sponsorRow, "sponsor");
-  updateNextDepIdx(); renderTimes(true);
-  setInterval(cycleMain, 5000);
-  setInterval(cycleSponsor, 4000);
-  setInterval(tickTimers, 1000);
-}
-async function init(){
-  try{
-    const res = await fetch("phrases.json", {cache:"no-store"});
-    if(!res.ok) throw new Error("phrases.json not found");
-    const raw = await res.json();
-    phrases = {
-      main: raw.main || [],
-      sponsors: raw.sponsors || [],
-      departures: (raw.departures || []).map(d => new Date(d))
-    };
-    if(phrases.main.length===0) throw new Error("phrases.json has no 'main' entries");
-    currMain = phrases.main[0]; buildRow(currMain, mainRow, "main");
-    currSponsor = (phrases.sponsors[0]||""); buildRow(currSponsor, sponsorRow, "sponsor");
-    updateNextDepIdx(); renderTimes(true);
-    setInterval(cycleMain, 5000);
-    setInterval(cycleSponsor, 4000);
-    setInterval(tickTimers, 1000);
-    statusEl.textContent = "";
-  }catch(e){
-    console.warn(e);
-    loadFallback();
-  }
-}
-init();
+
+(async function init(){
+  const baseLines = await loadPhrases();
+  while(baseLines.length < ROWS) baseLines.push("");
+  if(baseLines.length > ROWS) baseLines.length = ROWS;
+
+  buildBoard(baseLines);
+  const textSets = generateTextSets(baseLines);
+  cycleAll(textSets);
+
+  window.addEventListener("resize", ()=>{
+    const cols = currentTexts.reduce((m,t)=> Math.max(m, t.trim().length), 1);
+    setScaleForCols(cols);
+  });
+})();
 </script>
 </body>
 </html>
